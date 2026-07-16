@@ -269,7 +269,13 @@ struct WindowArranger: Sendable {
             frames = gridFrames(count: count, columns: 2, rows: 2, screen: screen)
         case 5...6:
             frames = gridFrames(count: count, columns: 3, rows: 2, screen: screen)
-        case 7...9:
+        case 7:
+            let horizontalRows = gridFrames(count: 2, columns: 1, rows: 2, screen: screen)
+            frames = gridFrames(count: 3, columns: 3, rows: 1, screen: horizontalRows[0])
+                + gridFrames(count: 4, columns: 4, rows: 1, screen: horizontalRows[1])
+        case 8:
+            frames = gridFrames(count: count, columns: 4, rows: 2, screen: screen)
+        case 9:
             frames = gridFrames(count: count, columns: 3, rows: 3, screen: screen)
         default:
             let columns = Int(ceil(sqrt(Double(count))))
@@ -301,33 +307,114 @@ struct WindowArranger: Sendable {
         screen: CGRect,
         mismatches: [WindowMismatch]
     ) -> [WindowPlacement]? {
-        guard (3...4).contains(windows.count),
-              let constrained = mismatches.max(by: {
-                  ($0.actualFrame?.height ?? 0) < ($1.actualFrame?.height ?? 0)
-              }),
-              let actual = constrained.actualFrame,
-              actual.height > constrained.placement.frame.height + frameTolerance,
-              let constrainedIndex = windows.firstIndex(where: {
-                  $0.processIdentifier == constrained.placement.window.processIdentifier
-                      && $0.windowIndex == constrained.placement.window.windowIndex
-              }) else {
+        if (6...9).contains(windows.count) {
+            return calculateTopRowPriorityLayout(
+                windows: windows,
+                screen: screen,
+                mismatches: mismatches
+            )
+        }
+
+        // Smaller layouts can change row heights after measuring app limits.
+        guard (3...5).contains(windows.count) else { return nil }
+
+        // Collision-only entries are victims of a neighboring oversized
+        // window. The constrained set contains only windows that rejected
+        // their own target frame.
+        let constrainedMismatches = mismatches.filter { $0.reason != "final bounds overlap another window" }
+        let constrainedWindows = constrainedMismatches.map(\.placement.window)
+        guard !constrainedWindows.isEmpty,
+              constrainedWindows.count < windows.count else {
             return nil
         }
 
-        var ordered = windows
-        let tallWindow = ordered.remove(at: constrainedIndex)
-        let halves = gridFrames(count: 2, columns: 2, rows: 1, screen: screen)
-        let supportFrames = gridFrames(
-            count: ordered.count,
-            columns: 1,
-            rows: ordered.count,
-            screen: halves[1]
+        let minimumTopHeight = constrainedMismatches.compactMap(\.actualFrame?.height).max() ?? screen.height * 0.58
+        let topHeight = min(screen.height - 280, max(screen.height * 0.58, minimumTopHeight))
+        let bottomHeight = screen.height - topHeight - gap
+        guard bottomHeight >= 260 else { return nil }
+
+        let topRect = CGRect(
+            x: screen.minX,
+            y: screen.minY,
+            width: screen.width,
+            height: topHeight
+        ).integral
+        let bottomRect = CGRect(
+            x: screen.minX,
+            y: topRect.maxY + gap,
+            width: screen.width,
+            height: bottomHeight
+        ).integral
+        let topFrames = gridFrames(
+            count: constrainedWindows.count,
+            columns: constrainedWindows.count,
+            rows: 1,
+            screen: topRect
         )
-        let fallbackFrames = [halves[0]] + supportFrames
-        ordered.insert(tallWindow, at: 0)
+
+        // Do not retry a fallback that is already narrower than a window's
+        // observed minimum width.
+        for (window, target) in zip(constrainedWindows, topFrames) {
+            guard let mismatch = constrainedMismatches.first(where: {
+                sameWindow($0.placement.window, window)
+            }),
+            let actual = mismatch.actualFrame,
+            actual.width <= target.width + frameTolerance else {
+                return nil
+            }
+        }
+
+        let remainingWindows = windows.filter { window in
+            !constrainedWindows.contains(where: { sameWindow($0, window) })
+        }
+        let bottomFrames = gridFrames(
+            count: remainingWindows.count,
+            columns: remainingWindows.count,
+            rows: 1,
+            screen: bottomRect
+        )
+        let ordered = constrainedWindows + remainingWindows
+        let fallbackFrames = topFrames + bottomFrames
         return zip(ordered, fallbackFrames).map {
             WindowPlacement(window: $0.0, frame: $0.1.integral)
         }
+    }
+
+    private func calculateTopRowPriorityLayout(
+        windows: [WindowInfo],
+        screen: CGRect,
+        mismatches: [WindowMismatch]
+    ) -> [WindowPlacement]? {
+        let constrained = mismatches
+            .filter { $0.reason != "final bounds overlap another window" }
+            .sorted { lhs, rhs in
+                constraintOverflow(for: lhs) > constraintOverflow(for: rhs)
+            }
+            .map(\.placement.window)
+        guard !constrained.isEmpty else { return nil }
+
+        // Put windows that rejected their target size into the first row.
+        // Eight windows use four columns; the other supported layouts use three.
+        let topRowCapacity = windows.count == 8 ? 4 : 3
+        let promoted = Array(constrained.prefix(topRowCapacity))
+        let remaining = windows.filter { window in
+            !promoted.contains(where: { sameWindow($0, window) })
+        }
+        let reordered = promoted + remaining
+        guard zip(reordered, windows).contains(where: { !sameWindow($0.0, $0.1) }) else {
+            return nil
+        }
+        return calculateLayout(windows: reordered, screen: screen)
+    }
+
+    private func constraintOverflow(for mismatch: WindowMismatch) -> CGFloat {
+        guard let actual = mismatch.actualFrame else { return .greatestFiniteMagnitude }
+        let target = mismatch.placement.frame
+        return max(0, actual.width - target.width) + max(0, actual.height - target.height)
+    }
+
+    private func sameWindow(_ lhs: WindowInfo, _ rhs: WindowInfo) -> Bool {
+        lhs.processIdentifier == rhs.processIdentifier && lhs.windowIndex == rhs.windowIndex
     }
 
     private func validateLayout(_ placements: [WindowPlacement], screen: CGRect) throws {

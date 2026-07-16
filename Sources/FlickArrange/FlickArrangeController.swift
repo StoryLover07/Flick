@@ -14,8 +14,15 @@ final class FlickArrangeAppState: ObservableObject {
     @Published private(set) var isAccessibilityTrusted = false
     @Published private(set) var latestAngle: Double?
     @Published private(set) var lastDetection = "Waiting for a Close or Open gesture"
-    @Published private(set) var lastArrangement = "No windows arranged yet"
+    @Published private(set) var lastActionStatus = "No action run yet"
+    @Published private(set) var closeAction: FlickAction
+    @Published private(set) var openAction: FlickAction
     @Published private(set) var activity: [ActivityLogEntry] = []
+
+    init() {
+        closeAction = Self.savedAction(for: .close, fallback: .arrange)
+        openAction = Self.savedAction(for: .open, fallback: .focus)
+    }
 
     var monitoringDetail: String {
         if isMonitoring, let latestAngle {
@@ -51,6 +58,22 @@ final class FlickArrangeAppState: ObservableObject {
         addActivity(enabled ? "Open gesture enabled" : "Open gesture disabled")
     }
 
+    func action(for gesture: FlickGesture) -> FlickAction {
+        switch gesture {
+        case .close: return closeAction
+        case .open: return openAction
+        }
+    }
+
+    func setAction(_ action: FlickAction, for gesture: FlickGesture) {
+        switch gesture {
+        case .close: closeAction = action
+        case .open: openAction = action
+        }
+        UserDefaults.standard.set(action.rawValue, forKey: Self.actionKey(for: gesture))
+        addActivity("\(gesture.title) assigned to \(action.title)")
+    }
+
     func recordDetection(_ gesture: String, note: String? = nil) {
         let time = Self.timeFormatter.string(from: Date())
         lastDetection = "\(gesture) detected at \(time)" + (note.map { " - \($0)" } ?? "")
@@ -60,12 +83,17 @@ final class FlickArrangeAppState: ObservableObject {
     func recordArrangement(_ result: ArrangeResult, preview: Bool) {
         let action = preview ? "Layout preview" : "Arrangement"
         let completedCount = preview ? result.targetCount : result.arrangedCount
-        lastArrangement = "\(action): \(completedCount)/\(result.targetCount) windows, \(result.totalDurationMilliseconds) ms"
-        addActivity("\(action): \(completedCount)/\(result.targetCount) windows in \(result.totalDurationMilliseconds) ms", kind: .success)
+        lastActionStatus = "\(action): \(completedCount)/\(result.targetCount) windows, \(result.totalDurationMilliseconds) ms"
+        addActivity(lastActionStatus, kind: .success)
+    }
+
+    func recordWorkspaceAction(_ result: WorkspaceActionResult) {
+        lastActionStatus = result.summary
+        addActivity(result.summary, kind: .success)
     }
 
     func recordFailure(_ message: String) {
-        lastArrangement = message
+        lastActionStatus = message
         addActivity(message, kind: .failure)
     }
 
@@ -79,6 +107,18 @@ final class FlickArrangeAppState: ObservableObject {
         formatter.dateFormat = "HH:mm:ss"
         return formatter
     }()
+
+    private static func actionKey(for gesture: FlickGesture) -> String {
+        "FlickActionAssignment.\(gesture.rawValue)"
+    }
+
+    private static func savedAction(for gesture: FlickGesture, fallback: FlickAction) -> FlickAction {
+        guard let rawValue = UserDefaults.standard.string(forKey: actionKey(for: gesture)),
+              let action = FlickAction(rawValue: rawValue) else {
+            return fallback
+        }
+        return action
+    }
 }
 
 struct ActivityLogEntry: Identifiable {
@@ -106,14 +146,17 @@ final class FlickArrangeController: NSObject {
     private let closeDetector = CloseGestureDetector()
     private let openDetector = OpenGestureDetector()
     private let arranger = WindowArranger()
+    private let workspaceActions = WorkspaceActionExecutor()
     private let state = FlickArrangeAppState()
     private var sensor: LidAngleSensor?
     private var timer: Timer?
     private var lastLoggedAngle: Double?
+    private var lastExternalApplicationPID: pid_t?
     private var dashboardWindow: NSWindow?
 
     func start() {
         state.refreshAccessibilityStatus()
+        captureActiveExternalApplication()
         configureMenu()
         showDashboard()
         startMonitoring()
@@ -146,7 +189,12 @@ final class FlickArrangeController: NSObject {
         menu.addItem(.separator())
         menu.addItem(menuItem("Open Flick", action: #selector(showDashboard)))
         menu.addItem(menuItem(state.isMonitoring ? "Stop Monitoring" : "Start Monitoring", action: #selector(toggleMonitoring), key: "m"))
+        menu.addItem(menuItem("Run Close Action (\(state.closeAction.title))", action: #selector(runCloseAction)))
+        menu.addItem(menuItem("Run Open Action (\(state.openAction.title))", action: #selector(runOpenAction)))
+        menu.addItem(.separator())
         menu.addItem(menuItem("Arrange Now", action: #selector(arrangeNow), key: "a"))
+        menu.addItem(menuItem("Focus Active Window", action: #selector(focusNow)))
+        menu.addItem(menuItem("Hide Apps for Desktop", action: #selector(hideNow)))
         menu.addItem(menuItem("Preview Current Layout", action: #selector(previewLayout), key: "p"))
         menu.addItem(.separator())
         menu.addItem(menuItem("Open Accessibility Settings", action: #selector(openAccessibilitySettings)))
@@ -200,6 +248,7 @@ final class FlickArrangeController: NSObject {
     private func pollSensor() {
         guard let sensor, let angle = sensor.readAngle() else { return }
 
+        captureActiveExternalApplication()
         state.setAngle(angle)
         statusItem.button?.title = String(format: "Flick %.0f", angle)
 
@@ -214,8 +263,7 @@ final class FlickArrangeController: NSObject {
            closeDetector.addSample(timestamp: timestamp, angle: angle) {
             print("FlickArrange: Close detected")
             statusItem.button?.title = "Flick!"
-            state.recordDetection("Close")
-            arrangeWindows(reason: "Close", preview: false)
+            handleGesture(.close)
             return
         }
 
@@ -223,17 +271,28 @@ final class FlickArrangeController: NSObject {
            openDetector.addSample(timestamp: timestamp, angle: angle) {
             print("FlickArrange: Open detected")
             statusItem.button?.title = "Flick!"
-            state.recordDetection("Open", note: "No action assigned yet")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                guard self?.state.isArranging == false else { return }
-                self?.statusItem.button?.title = "Flick"
-            }
+            handleGesture(.open)
+        }
+    }
+
+    private func handleGesture(_ gesture: FlickGesture) {
+        let action = state.action(for: gesture)
+        state.recordDetection(gesture.title, note: action.title)
+        runAction(action, reason: gesture.title)
+    }
+
+    private func runAction(_ action: FlickAction, reason: String) {
+        switch action {
+        case .arrange:
+            arrangeWindows(reason: reason, preview: false)
+        case .focus, .hide:
+            runWorkspaceAction(action, reason: reason)
         }
     }
 
     private func arrangeWindows(reason: String, preview: Bool) {
         guard !state.isArranging else {
-            state.addActivity("An arrangement is already in progress")
+            state.addActivity("Another Flick action is already in progress")
             return
         }
 
@@ -251,7 +310,42 @@ final class FlickArrangeController: NSObject {
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self?.finishArrangementFailure(error)
+                    self?.finishActionFailure(error)
+                }
+            }
+        }
+    }
+
+    private func runWorkspaceAction(_ action: FlickAction, reason: String) {
+        guard !state.isArranging else {
+            state.addActivity("Another Flick action is already in progress")
+            return
+        }
+
+        state.refreshAccessibilityStatus()
+        state.setArranging(true)
+        state.addActivity("Running \(action.title)...")
+        rebuildMenu()
+
+        let workspaceActions = workspaceActions
+        let preferredActiveProcessID = lastExternalApplicationPID
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                let result: WorkspaceActionResult
+                switch action {
+                case .focus:
+                    result = try workspaceActions.focus(preferredActiveProcessID: preferredActiveProcessID)
+                case .hide:
+                    result = try workspaceActions.hideAllApps()
+                case .arrange:
+                    return
+                }
+                DispatchQueue.main.async {
+                    self?.finishWorkspaceAction(result, reason: reason)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.finishActionFailure(error)
                 }
             }
         }
@@ -267,15 +361,27 @@ final class FlickArrangeController: NSObject {
         rebuildMenu()
     }
 
-    private func finishArrangementFailure(_ error: Error) {
+    private func finishWorkspaceAction(_ result: WorkspaceActionResult, reason: String) {
         state.setArranging(false)
         state.refreshAccessibilityStatus()
-        let message = "Could not arrange windows: \(error)"
+        state.recordWorkspaceAction(result)
+        print("FlickArrange: \(reason) ran \(result.action.title)")
+        if result.action == .hide {
+            dashboardWindow?.orderOut(nil)
+        }
+        statusItem.button?.title = "Flick"
+        rebuildMenu()
+    }
+
+    private func finishActionFailure(_ error: Error) {
+        state.setArranging(false)
+        state.refreshAccessibilityStatus()
+        let message = "Could not run Flick action: \(error)"
         state.recordFailure(message)
-        print("FlickArrange: arrange failed: \(error)")
+        print("FlickArrange: action failed: \(error)")
         rebuildMenu()
         showAlert(
-            title: "Could not arrange windows",
+            title: "Could not run Flick action",
                 message: "\(error)\n\nAllow Flick in System Settings > Privacy & Security > Accessibility, then quit and reopen the app."
         )
     }
@@ -294,6 +400,7 @@ final class FlickArrangeController: NSObject {
     }
 
     @objc private func showDashboard() {
+        captureActiveExternalApplication()
         if let dashboardWindow {
             dashboardWindow.makeKeyAndOrderFront(nil)
         } else {
@@ -302,7 +409,8 @@ final class FlickArrangeController: NSObject {
                 toggleMonitoring: { [weak self] in self?.toggleMonitoring() },
                 setCloseGestureEnabled: { [weak self] enabled in self?.setCloseGestureEnabled(enabled) },
                 setOpenGestureEnabled: { [weak self] enabled in self?.setOpenGestureEnabled(enabled) },
-                arrangeNow: { [weak self] in self?.arrangeNow() },
+                setAction: { [weak self] gesture, action in self?.setAction(action, for: gesture) },
+                runAction: { [weak self] gesture in self?.runAssignedAction(gesture) },
                 previewLayout: { [weak self] in self?.previewLayout() },
                 openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() }
             )
@@ -342,8 +450,33 @@ final class FlickArrangeController: NSObject {
         rebuildMenu()
     }
 
+    private func setAction(_ action: FlickAction, for gesture: FlickGesture) {
+        state.setAction(action, for: gesture)
+        rebuildMenu()
+    }
+
+    private func runAssignedAction(_ gesture: FlickGesture) {
+        runAction(state.action(for: gesture), reason: "Manual \(gesture.title)")
+    }
+
     @objc private func arrangeNow() {
         arrangeWindows(reason: "Manual arrange", preview: false)
+    }
+
+    @objc private func runCloseAction() {
+        runAssignedAction(.close)
+    }
+
+    @objc private func runOpenAction() {
+        runAssignedAction(.open)
+    }
+
+    @objc private func focusNow() {
+        runAction(.focus, reason: "Manual focus")
+    }
+
+    @objc private func hideNow() {
+        runAction(.hide, reason: "Manual hide")
     }
 
     @objc private func previewLayout() {
@@ -359,5 +492,15 @@ final class FlickArrangeController: NSObject {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    private func captureActiveExternalApplication() {
+        guard let application = NSWorkspace.shared.frontmostApplication,
+              application.processIdentifier != getpid(),
+              application.activationPolicy == .regular,
+              !application.isTerminated else {
+            return
+        }
+        lastExternalApplicationPID = application.processIdentifier
     }
 }

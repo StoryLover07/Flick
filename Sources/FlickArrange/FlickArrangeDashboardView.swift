@@ -1,42 +1,15 @@
 import SwiftUI
 
-private enum LidGesture: String, CaseIterable, Identifiable {
-    case close
-    case open
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .close: return "Close"
-        case .open: return "Open"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .close: return "Quick close, then reopen"
-        case .open: return "Quick open, then close slightly"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .close: return "arrow.down"
-        case .open: return "arrow.up"
-        }
-    }
-}
-
 struct FlickArrangeDashboardView: View {
     @ObservedObject var state: FlickArrangeAppState
     let toggleMonitoring: () -> Void
     let setCloseGestureEnabled: (Bool) -> Void
     let setOpenGestureEnabled: (Bool) -> Void
-    let arrangeNow: () -> Void
+    let setAction: (FlickGesture, FlickAction) -> Void
+    let runAction: (FlickGesture) -> Void
     let previewLayout: () -> Void
     let openAccessibilitySettings: () -> Void
-    @State private var selectedGesture: LidGesture? = .close
+    @State private var selectedGesture: FlickGesture? = .close
 
     var body: some View {
         NavigationStack {
@@ -47,7 +20,8 @@ struct FlickArrangeDashboardView: View {
                         state: state,
                         toggleMonitoring: toggleMonitoring,
                         setCloseGestureEnabled: setCloseGestureEnabled,
-                        arrangeNow: arrangeNow,
+                        setAction: { setAction(.close, $0) },
+                        runAction: { runAction(.close) },
                         previewLayout: previewLayout,
                         openAccessibilitySettings: openAccessibilitySettings
                     )
@@ -56,6 +30,9 @@ struct FlickArrangeDashboardView: View {
                         state: state,
                         toggleMonitoring: toggleMonitoring,
                         setOpenGestureEnabled: setOpenGestureEnabled,
+                        setAction: { setAction(.open, $0) },
+                        runAction: { runAction(.open) },
+                        previewLayout: previewLayout,
                         openAccessibilitySettings: openAccessibilitySettings
                     )
                 case .none:
@@ -72,7 +49,7 @@ struct FlickArrangeDashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Picker("Lid gesture", selection: $selectedGesture) {
-                        ForEach(LidGesture.allCases) { gesture in
+                        ForEach(FlickGesture.allCases) { gesture in
                             Label {
                                 Text(gesture.title)
                             } icon: {
@@ -120,7 +97,8 @@ private struct CloseGestureDetailView: View {
     @ObservedObject var state: FlickArrangeAppState
     let toggleMonitoring: () -> Void
     let setCloseGestureEnabled: (Bool) -> Void
-    let arrangeNow: () -> Void
+    let setAction: (FlickAction) -> Void
+    let runAction: () -> Void
     let previewLayout: () -> Void
     let openAccessibilitySettings: () -> Void
 
@@ -181,41 +159,13 @@ private struct CloseGestureDetailView: View {
     }
 
     private var actionCard: some View {
-        DashboardCard(title: "Assigned Action", systemImage: "bolt.circle") {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "rectangle.3.group")
-                    .font(.title2)
-                    .foregroundStyle(.tint)
-                    .frame(width: 36, height: 36)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Flick")
-                        .font(.headline)
-                    Text("Arrange non-minimized windows visible on the active screen and Space.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
-            Divider()
-
-            HStack(spacing: 10) {
-                Button("Run Action Now", action: arrangeNow)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(state.isArranging)
-                Button("Preview Layout", action: previewLayout)
-                    .disabled(state.isArranging)
-                if state.isArranging {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(.leading, 4)
-                }
-            }
-            Text(state.lastArrangement)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+        ActionAssignmentCard(
+            state: state,
+            action: state.closeAction,
+            setAction: setAction,
+            runAction: runAction,
+            previewLayout: previewLayout
+        )
     }
 }
 
@@ -223,6 +173,9 @@ private struct OpenGestureDetailView: View {
     @ObservedObject var state: FlickArrangeAppState
     let toggleMonitoring: () -> Void
     let setOpenGestureEnabled: (Bool) -> Void
+    let setAction: (FlickAction) -> Void
+    let runAction: () -> Void
+    let previewLayout: () -> Void
     let openAccessibilitySettings: () -> Void
 
     var body: some View {
@@ -282,22 +235,72 @@ private struct OpenGestureDetailView: View {
     }
 
     private var actionCard: some View {
+        ActionAssignmentCard(
+            state: state,
+            action: state.openAction,
+            setAction: setAction,
+            runAction: runAction,
+            previewLayout: previewLayout
+        )
+    }
+}
+
+private struct ActionAssignmentCard: View {
+    @ObservedObject var state: FlickArrangeAppState
+    let action: FlickAction
+    let setAction: (FlickAction) -> Void
+    let runAction: () -> Void
+    let previewLayout: () -> Void
+
+    var body: some View {
         DashboardCard(title: "Assigned Action", systemImage: "bolt.circle") {
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "clock.arrow.circlepath")
+                Image(systemName: action.symbol)
                     .font(.title2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tint)
                     .frame(width: 36, height: 36)
                     .background(.quaternary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("No action assigned yet")
+                    Text(action.title)
                         .font(.headline)
-                    Text("Open is ready as an input gesture. Launcher, Recent Apps, and Recall remain outside this MVP for now.")
+                    Text(action.subtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 12)
+                Picker("Action", selection: Binding(
+                    get: { action },
+                    set: setAction
+                )) {
+                    ForEach(FlickAction.allCases) { candidate in
+                        Label(candidate.title, systemImage: candidate.symbol)
+                            .tag(candidate)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityLabel("Assigned Flick action")
             }
+
+            Divider()
+
+            HStack(spacing: 10) {
+                Button("Run \(action.title)", action: runAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(state.isArranging)
+                if action == .arrange {
+                    Button("Preview Layout", action: previewLayout)
+                        .disabled(state.isArranging)
+                }
+                if state.isArranging {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.leading, 4)
+                }
+            }
+            Text(state.lastActionStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
