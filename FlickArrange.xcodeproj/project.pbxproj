@@ -1,0 +1,300 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* main.swift */; };
+		A10000000000000000000002 /* FlickArrangeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* FlickArrangeController.swift */; };
+		A10000000000000000000003 /* FlickArrangeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* FlickArrangeDashboardView.swift */; };
+		A10000000000000000000004 /* LidAngleSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* LidAngleSensor.swift */; };
+		A10000000000000000000005 /* CloseGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* CloseGestureDetector.swift */; };
+		A10000000000000000000006 /* WindowArranger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* WindowArranger.swift */; };
+		A10000000000000000000007 /* ArrangeWindowsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* ArrangeWindowsIntent.swift */; };
+		A10000000000000000000008 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* AppKit.framework */; };
+		A10000000000000000000009 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* ApplicationServices.framework */; };
+		A10000000000000000000010 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* CoreGraphics.framework */; };
+		A10000000000000000000011 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* IOKit.framework */; };
+		A10000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* Assets.xcassets */; };
+		A10000000000000000000013 /* OpenGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* OpenGestureDetector.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/main.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000002 /* FlickArrangeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickArrangeController.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000003 /* FlickArrangeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickArrangeDashboardView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000004 /* LidAngleSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/LidAngleSensor.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000005 /* CloseGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/CloseGestureDetector.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000006 /* WindowArranger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/WindowArranger.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000007 /* ArrangeWindowsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/ArrangeWindowsIntent.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000008 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		A20000000000000000000009 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
+		A20000000000000000000010 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		A20000000000000000000011 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+			A20000000000000000000012 /* Flick.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flick.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000014 /* OpenGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/OpenGestureDetector.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000008 /* AppKit.framework in Frameworks */,
+				A10000000000000000000009 /* ApplicationServices.framework in Frameworks */,
+				A10000000000000000000010 /* CoreGraphics.framework in Frameworks */,
+				A10000000000000000000011 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* Sources */,
+				A20000000000000000000013 /* Assets.xcassets */,
+				A40000000000000000000003 /* Frameworks */,
+				A40000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* main.swift */,
+				A20000000000000000000002 /* FlickArrangeController.swift */,
+				A20000000000000000000003 /* FlickArrangeDashboardView.swift */,
+				A20000000000000000000004 /* LidAngleSensor.swift */,
+				A20000000000000000000005 /* CloseGestureDetector.swift */,
+				A20000000000000000000014 /* OpenGestureDetector.swift */,
+				A20000000000000000000006 /* WindowArranger.swift */,
+				A20000000000000000000007 /* ArrangeWindowsIntent.swift */,
+			);
+			name = Sources;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000008 /* AppKit.framework */,
+				A20000000000000000000009 /* ApplicationServices.framework */,
+				A20000000000000000000010 /* CoreGraphics.framework */,
+				A20000000000000000000011 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000012 /* Flick.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* Flick */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "Flick" */;
+			buildPhases = (
+				A30000000000000000000004 /* Generate App Icon Sizes */,
+				A30000000000000000000002 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A30000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = Flick;
+			productName = Flick;
+			productReference = A20000000000000000000012 /* Flick.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A70000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A50000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "FlickArrange" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A50000000000000000000001 /* Flick */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A30000000000000000000004 /* Generate App Icon Sizes */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
+			);
+			name = "Generate App Icon Sizes";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-16.png",
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-32.png",
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-64.png",
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-128.png",
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-256.png",
+				"$(SRCROOT)/Assets.xcassets/AppIcon.appiconset/AppIcon-512.png",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ICON_DIR=\"$SRCROOT/Assets.xcassets/AppIcon.appiconset\"\nSOURCE_ICON=\"$ICON_DIR/AppIcon-1024.png\"\n\nif [ ! -f \"$SOURCE_ICON\" ]; then\n  echo \"warning: Add AppIcon-1024.png to Assets.xcassets/AppIcon.appiconset to enable the Flick app icon.\"\n  exit 0\nfi\n\nfor size in 16 32 64 128 256 512; do\n  output=\"$ICON_DIR/AppIcon-${size}.png\"\n  /usr/bin/sips -z \"$size\" \"$size\" \"$SOURCE_ICON\" --out \"$output\" >/dev/null\n done\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* main.swift in Sources */,
+				A10000000000000000000002 /* FlickArrangeController.swift in Sources */,
+				A10000000000000000000003 /* FlickArrangeDashboardView.swift in Sources */,
+				A10000000000000000000004 /* LidAngleSensor.swift in Sources */,
+				A10000000000000000000005 /* CloseGestureDetector.swift in Sources */,
+				A10000000000000000000013 /* OpenGestureDetector.swift in Sources */,
+				A10000000000000000000006 /* WindowArranger.swift in Sources */,
+				A10000000000000000000007 /* ArrangeWindowsIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A80000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A80000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A80000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_KEY_CFBundleDisplayName = Flick;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jihoonchoi.FlickArrange;
+				PRODUCT_NAME = Flick;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		A80000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_KEY_CFBundleDisplayName = Flick;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jihoonchoi.FlickArrange;
+				PRODUCT_NAME = Flick;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A60000000000000000000001 /* Build configuration list for PBXProject "FlickArrange" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000001 /* Debug */,
+				A80000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "Flick" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000003 /* Debug */,
+				A80000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A70000000000000000000001 /* Project object */;
+}
