@@ -32,6 +32,7 @@ enum FlickAction: String, CaseIterable, Identifiable {
     case arrange
     case focus
     case hide
+    case privacy
 
     var id: String { rawValue }
 
@@ -40,6 +41,7 @@ enum FlickAction: String, CaseIterable, Identifiable {
         case .arrange: return "Flick Arrange"
         case .focus: return "Flick Focus"
         case .hide: return "Flick Hide"
+        case .privacy: return "Flick Privacy"
         }
     }
 
@@ -51,6 +53,8 @@ enum FlickAction: String, CaseIterable, Identifiable {
             return "Keep the active window visible and hide the rest."
         case .hide:
             return "Hide general app windows to reveal the Desktop."
+        case .privacy:
+            return "Protect privacy by dimming the display, muting audio, hiding sensitive apps, enabling work mode, pausing media, and focusing the active window."
         }
     }
 
@@ -59,6 +63,7 @@ enum FlickAction: String, CaseIterable, Identifiable {
         case .arrange: return "rectangle.3.group"
         case .focus: return "viewfinder"
         case .hide: return "desktopcomputer"
+        case .privacy: return "lock.shield"
         }
     }
 }

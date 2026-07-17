@@ -13,13 +13,19 @@ struct WorkspaceActionResult {
             return "Flick Focus kept the active window visible and hid \(affectedApplicationCount) apps."
         case .hide:
             return "Flick Hide hid \(affectedApplicationCount) apps to reveal the Desktop."
-        case .arrange:
+        case .arrange, .privacy:
             return ""
         }
     }
 }
 
-enum WorkspaceActionError: Error, CustomStringConvertible {
+struct WorkspaceApplicationHideResult {
+    let hiddenCount: Int
+    let alreadyHiddenCount: Int
+    let failedBundleIdentifiers: [String]
+}
+
+enum WorkspaceActionError: Error, CustomStringConvertible, LocalizedError {
     case accessibilityPermissionDenied
     case noActiveApplication
 
@@ -31,6 +37,8 @@ enum WorkspaceActionError: Error, CustomStringConvertible {
             return "Could not find an active application to focus."
         }
     }
+
+    var errorDescription: String? { description }
 }
 
 struct WorkspaceActionExecutor: Sendable {
@@ -88,6 +96,33 @@ struct WorkspaceActionExecutor: Sendable {
             action: .hide,
             affectedApplicationCount: hiddenApplicationCount,
             affectedWindowCount: 0
+        )
+    }
+
+    func hideApplications(bundleIdentifiers: Set<String>) -> WorkspaceApplicationHideResult {
+        var hiddenCount = 0
+        var alreadyHiddenCount = 0
+        var failedBundleIdentifiers: [String] = []
+
+        let applications = controllableApplications().filter { application in
+            guard let bundleIdentifier = application.bundleIdentifier else { return false }
+            return bundleIdentifiers.contains(bundleIdentifier)
+        }
+
+        for application in applications {
+            if application.isHidden {
+                alreadyHiddenCount += 1
+            } else if hide(application) {
+                hiddenCount += 1
+            } else if let bundleIdentifier = application.bundleIdentifier {
+                failedBundleIdentifiers.append(bundleIdentifier)
+            }
+        }
+
+        return WorkspaceApplicationHideResult(
+            hiddenCount: hiddenCount,
+            alreadyHiddenCount: alreadyHiddenCount,
+            failedBundleIdentifiers: failedBundleIdentifiers
         )
     }
 

@@ -21,6 +21,8 @@
 		A10000000000000000000013 /* OpenGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* OpenGestureDetector.swift */; };
 		A10000000000000000000014 /* FlickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* FlickAction.swift */; };
 		A10000000000000000000015 /* WorkspaceActionExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* WorkspaceActionExecutor.swift */; };
+		A10000000000000000000016 /* FlickPrivacySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* FlickPrivacySettings.swift */; };
+		A10000000000000000000017 /* FlickPrivacyExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* FlickPrivacyExecutor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +42,8 @@
 		A20000000000000000000014 /* OpenGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/OpenGestureDetector.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* FlickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickAction.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* WorkspaceActionExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/WorkspaceActionExecutor.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000017 /* FlickPrivacySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickPrivacySettings.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000018 /* FlickPrivacyExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickPrivacyExecutor.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +82,8 @@
 				A20000000000000000000014 /* OpenGestureDetector.swift */,
 				A20000000000000000000015 /* FlickAction.swift */,
 				A20000000000000000000016 /* WorkspaceActionExecutor.swift */,
+				A20000000000000000000017 /* FlickPrivacySettings.swift */,
+				A20000000000000000000018 /* FlickPrivacyExecutor.swift */,
 				A20000000000000000000006 /* WindowArranger.swift */,
 				A20000000000000000000007 /* ArrangeWindowsIntent.swift */,
 			);
@@ -207,6 +213,8 @@
 				A10000000000000000000013 /* OpenGestureDetector.swift in Sources */,
 				A10000000000000000000014 /* FlickAction.swift in Sources */,
 				A10000000000000000000015 /* WorkspaceActionExecutor.swift in Sources */,
+				A10000000000000000000016 /* FlickPrivacySettings.swift in Sources */,
+				A10000000000000000000017 /* FlickPrivacyExecutor.swift in Sources */,
 				A10000000000000000000006 /* WindowArranger.swift in Sources */,
 				A10000000000000000000007 /* ArrangeWindowsIntent.swift in Sources */,
 			);

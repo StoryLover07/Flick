@@ -108,6 +108,9 @@ private struct CloseGestureDetailView: View {
                 gestureHeader
                 detectionCard
                 actionCard
+                if state.closeAction == .privacy {
+                    FlickPrivacySettingsCard(state: state)
+                }
                 LiveSensorCard(state: state, toggleMonitoring: toggleMonitoring)
                 RecentActivityCard(state: state, openAccessibilitySettings: openAccessibilitySettings)
             }
@@ -184,6 +187,9 @@ private struct OpenGestureDetailView: View {
                 gestureHeader
                 detectionCard
                 actionCard
+                if state.openAction == .privacy {
+                    FlickPrivacySettingsCard(state: state)
+                }
                 LiveSensorCard(state: state, toggleMonitoring: toggleMonitoring)
                 RecentActivityCard(state: state, openAccessibilitySettings: openAccessibilitySettings)
             }
@@ -302,6 +308,304 @@ private struct ActionAssignmentCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct FlickPrivacySettingsCard: View {
+    @ObservedObject var state: FlickArrangeAppState
+    @State private var appPicker: PrivacyAppPickerPresentation?
+
+    var body: some View {
+        DashboardCard(title: "Flick Privacy Settings", systemImage: "lock.shield") {
+            VStack(alignment: .leading, spacing: 16) {
+                brightnessSection
+                Divider()
+                simpleToggle(
+                    title: "Mute volume",
+                    detail: "Set the system output volume to 0%.",
+                    symbol: "speaker.slash",
+                    keyPath: \.muteVolumeEnabled
+                )
+                Divider()
+                privacyApplicationsSection
+                Divider()
+                workModeSection
+                Divider()
+                simpleToggle(
+                    title: "Pause media",
+                    detail: "Send a pause command to the current system media session. Some apps may ignore it.",
+                    symbol: "pause.circle",
+                    keyPath: \.pauseMediaEnabled
+                )
+                Divider()
+                simpleToggle(
+                    title: "Focus active window",
+                    detail: "Reuse Flick Focus to keep the active window and hide other general app windows.",
+                    symbol: "viewfinder",
+                    keyPath: \.focusActiveWindowEnabled
+                )
+            }
+        }
+        .sheet(item: $appPicker) { presentation in
+            PrivacyApplicationPicker(
+                applications: presentation.applications,
+                addApplication: addPrivacyApplication
+            )
+        }
+    }
+
+    private var brightnessSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PrivacySettingHeader(
+                title: "Dim built-in display",
+                detail: "Use an absolute brightness level on the full 0-100% scale.",
+                symbol: "sun.min",
+                isOn: boolBinding(\.dimDisplayEnabled)
+            )
+            if state.privacySettings.dimDisplayEnabled {
+                HStack(spacing: 12) {
+                    Slider(value: brightnessBinding, in: 0...1, step: 0.05)
+                    Text("\(Int((state.privacySettings.targetBrightness * 100).rounded()))%")
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
+                Text("Built-in MacBook display first. External displays and unsupported macOS versions may reject this step.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var privacyApplicationsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PrivacySettingHeader(
+                title: "Hide messenger and mail apps",
+                detail: "Hide selected apps by bundle identifier. No semantic app classification is used.",
+                symbol: "eye.slash",
+                isOn: boolBinding(\.hidePrivacyAppsEnabled)
+            )
+            if state.privacySettings.hidePrivacyAppsEnabled {
+                VStack(spacing: 0) {
+                    ForEach(state.privacySettings.hiddenAppBundleIdentifiers, id: \.self) { bundleIdentifier in
+                        HStack(spacing: 10) {
+                            Image(systemName: "app")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 18)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(FlickPrivacyApplicationCatalog.displayName(for: bundleIdentifier))
+                                    .font(.subheadline.weight(.medium))
+                                Text(bundleIdentifier)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            if FlickPrivacyApplicationCatalog.defaultBundleIdentifiers.contains(bundleIdentifier) {
+                                Text("Default")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button {
+                                removePrivacyApplication(bundleIdentifier)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove from Flick Privacy")
+                        }
+                        .padding(.vertical, 7)
+                        if bundleIdentifier != state.privacySettings.hiddenAppBundleIdentifiers.last {
+                            Divider()
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .background(.background.opacity(0.45), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                HStack {
+                    Button {
+                        let selected = Set(state.privacySettings.hiddenAppBundleIdentifiers)
+                        let applications = FlickPrivacyApplicationCatalog.runningApplications().filter {
+                            !selected.contains($0.bundleIdentifier)
+                        }
+                        appPicker = PrivacyAppPickerPresentation(applications: applications)
+                    } label: {
+                        Label("Add Running App...", systemImage: "plus")
+                    }
+                    Button("Restore Default List") {
+                        state.updatePrivacySettings {
+                            $0.hiddenAppBundleIdentifiers = FlickPrivacyApplicationCatalog.defaultBundleIdentifiers
+                        }
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var workModeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PrivacySettingHeader(
+                title: "Enable work mode",
+                detail: "Run a macOS Shortcut that enables the Focus mode you choose.",
+                symbol: "briefcase",
+                isOn: boolBinding(\.workModeEnabled)
+            )
+            if state.privacySettings.workModeEnabled {
+                TextField("Shortcut name", text: workModeShortcutBinding)
+                    .textFieldStyle(.roundedBorder)
+                Text("Work mode depends on a Shortcut you create in the Shortcuts app. Focus control has no stable public macOS API, so this step may require system approval or may not run on every setup.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func simpleToggle(
+        title: String,
+        detail: String,
+        symbol: String,
+        keyPath: WritableKeyPath<FlickPrivacySettings, Bool>
+    ) -> some View {
+        PrivacySettingHeader(
+            title: title,
+            detail: detail,
+            symbol: symbol,
+            isOn: boolBinding(keyPath)
+        )
+    }
+
+    private func boolBinding(_ keyPath: WritableKeyPath<FlickPrivacySettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { state.privacySettings[keyPath: keyPath] },
+            set: { newValue in
+                state.updatePrivacySettings { $0[keyPath: keyPath] = newValue }
+            }
+        )
+    }
+
+    private var brightnessBinding: Binding<Double> {
+        Binding(
+            get: { state.privacySettings.targetBrightness },
+            set: { newValue in
+                state.updatePrivacySettings { $0.targetBrightness = newValue }
+            }
+        )
+    }
+
+    private var workModeShortcutBinding: Binding<String> {
+        Binding(
+            get: { state.privacySettings.workModeShortcutName },
+            set: { newValue in
+                state.updatePrivacySettings { $0.workModeShortcutName = newValue }
+            }
+        )
+    }
+
+    private func addPrivacyApplication(_ application: PrivacyApplicationOption) {
+        state.updatePrivacySettings { settings in
+            settings.hiddenAppBundleIdentifiers.append(application.bundleIdentifier)
+        }
+    }
+
+    private func removePrivacyApplication(_ bundleIdentifier: String) {
+        state.updatePrivacySettings { settings in
+            settings.hiddenAppBundleIdentifiers.removeAll { $0 == bundleIdentifier }
+        }
+    }
+}
+
+private struct PrivacySettingHeader: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: symbol)
+                .foregroundStyle(.tint)
+                .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Toggle(title, isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+        }
+    }
+}
+
+private struct PrivacyAppPickerPresentation: Identifiable {
+    let id = UUID()
+    let applications: [PrivacyApplicationOption]
+}
+
+private struct PrivacyApplicationPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let applications: [PrivacyApplicationOption]
+    let addApplication: (PrivacyApplicationOption) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Add Running App")
+                .font(.title2.weight(.semibold))
+            Text("Choose a currently running general app to hide when Flick Privacy runs.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if applications.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "app.dashed")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No Apps Available")
+                        .font(.headline)
+                    Text("All running general apps are already in the Privacy list.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(applications) { application in
+                    Button {
+                        addApplication(application)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Image(systemName: "app")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(application.displayName)
+                                Text(application.bundleIdentifier)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(.tint)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 460, height: 420)
     }
 }
 

@@ -17,11 +17,13 @@ final class FlickArrangeAppState: ObservableObject {
     @Published private(set) var lastActionStatus = "No action run yet"
     @Published private(set) var closeAction: FlickAction
     @Published private(set) var openAction: FlickAction
+    @Published private(set) var privacySettings: FlickPrivacySettings
     @Published private(set) var activity: [ActivityLogEntry] = []
 
     init() {
         closeAction = Self.savedAction(for: .close, fallback: .arrange)
         openAction = Self.savedAction(for: .open, fallback: .focus)
+        privacySettings = FlickPrivacySettingsStore.load()
     }
 
     var monitoringDetail: String {
@@ -74,6 +76,14 @@ final class FlickArrangeAppState: ObservableObject {
         addActivity("\(gesture.title) assigned to \(action.title)")
     }
 
+    func updatePrivacySettings(_ update: (inout FlickPrivacySettings) -> Void) {
+        var settings = privacySettings
+        update(&settings)
+        settings.normalize()
+        privacySettings = settings
+        FlickPrivacySettingsStore.save(settings)
+    }
+
     func recordDetection(_ gesture: String, note: String? = nil) {
         let time = Self.timeFormatter.string(from: Date())
         lastDetection = "\(gesture) detected at \(time)" + (note.map { " - \($0)" } ?? "")
@@ -90,6 +100,15 @@ final class FlickArrangeAppState: ObservableObject {
     func recordWorkspaceAction(_ result: WorkspaceActionResult) {
         lastActionStatus = result.summary
         addActivity(result.summary, kind: .success)
+    }
+
+    func recordPrivacyAction(_ result: FlickPrivacyResult) {
+        for failure in result.failures {
+            addActivity("Privacy \(failure.step.rawValue): \(failure.detail)", kind: .failure)
+        }
+        lastActionStatus = result.summary
+        let summaryKind: ActivityLogEntry.Kind = result.summaryItems.isEmpty ? .failure : .success
+        addActivity(result.summary, kind: summaryKind)
     }
 
     func recordFailure(_ message: String) {
@@ -147,6 +166,7 @@ final class FlickArrangeController: NSObject {
     private let openDetector = OpenGestureDetector()
     private let arranger = WindowArranger()
     private let workspaceActions = WorkspaceActionExecutor()
+    private let privacyExecutor = FlickPrivacyExecutor()
     private let state = FlickArrangeAppState()
     private var sensor: LidAngleSensor?
     private var timer: Timer?
@@ -195,6 +215,7 @@ final class FlickArrangeController: NSObject {
         menu.addItem(menuItem("Arrange Now", action: #selector(arrangeNow), key: "a"))
         menu.addItem(menuItem("Focus Active Window", action: #selector(focusNow)))
         menu.addItem(menuItem("Hide Apps for Desktop", action: #selector(hideNow)))
+        menu.addItem(menuItem("Apply Flick Privacy", action: #selector(privacyNow)))
         menu.addItem(menuItem("Preview Current Layout", action: #selector(previewLayout), key: "p"))
         menu.addItem(.separator())
         menu.addItem(menuItem("Open Accessibility Settings", action: #selector(openAccessibilitySettings)))
@@ -287,6 +308,8 @@ final class FlickArrangeController: NSObject {
             arrangeWindows(reason: reason, preview: false)
         case .focus, .hide:
             runWorkspaceAction(action, reason: reason)
+        case .privacy:
+            runPrivacyAction(reason: reason)
         }
     }
 
@@ -337,7 +360,7 @@ final class FlickArrangeController: NSObject {
                     result = try workspaceActions.focus(preferredActiveProcessID: preferredActiveProcessID)
                 case .hide:
                     result = try workspaceActions.hideAllApps()
-                case .arrange:
+                case .arrange, .privacy:
                     return
                 }
                 DispatchQueue.main.async {
@@ -347,6 +370,31 @@ final class FlickArrangeController: NSObject {
                 DispatchQueue.main.async {
                     self?.finishActionFailure(error)
                 }
+            }
+        }
+    }
+
+    private func runPrivacyAction(reason: String) {
+        guard !state.isArranging else {
+            state.addActivity("Another Flick action is already in progress")
+            return
+        }
+
+        state.refreshAccessibilityStatus()
+        state.setArranging(true)
+        state.addActivity("Running Flick Privacy...")
+        rebuildMenu()
+
+        let privacyExecutor = privacyExecutor
+        let settings = state.privacySettings
+        let preferredActiveProcessID = lastExternalApplicationPID
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = privacyExecutor.apply(
+                settings: settings,
+                preferredActiveProcessID: preferredActiveProcessID
+            )
+            DispatchQueue.main.async {
+                self?.finishPrivacyAction(result, reason: reason)
             }
         }
     }
@@ -371,6 +419,22 @@ final class FlickArrangeController: NSObject {
         }
         statusItem.button?.title = "Flick"
         rebuildMenu()
+    }
+
+    private func finishPrivacyAction(_ result: FlickPrivacyResult, reason: String) {
+        state.setArranging(false)
+        state.refreshAccessibilityStatus()
+        state.recordPrivacyAction(result)
+        print("FlickArrange: \(reason) ran Flick Privacy with \(result.failures.count) warning(s)")
+        statusItem.button?.title = "Flick"
+        rebuildMenu()
+
+        if result.needsAccessibilityPermission {
+            showAlert(
+                title: "Flick Privacy needs Accessibility",
+                message: "The other enabled Privacy steps completed, but focusing the active window needs permission.\n\nAllow Flick in System Settings > Privacy & Security > Accessibility, then quit and reopen the app."
+            )
+        }
     }
 
     private func finishActionFailure(_ error: Error) {
@@ -477,6 +541,10 @@ final class FlickArrangeController: NSObject {
 
     @objc private func hideNow() {
         runAction(.hide, reason: "Manual hide")
+    }
+
+    @objc private func privacyNow() {
+        runAction(.privacy, reason: "Manual privacy")
     }
 
     @objc private func previewLayout() {
