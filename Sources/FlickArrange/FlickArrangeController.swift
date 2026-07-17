@@ -6,6 +6,7 @@ import SwiftUI
 
 @MainActor
 final class FlickArrangeAppState: ObservableObject {
+    private var actionAssignments: FlickActionAssignments
     @Published private(set) var sensorStatus = "Starting sensor..."
     @Published private(set) var isMonitoring = false
     @Published private(set) var isArranging = false
@@ -18,12 +19,16 @@ final class FlickArrangeAppState: ObservableObject {
     @Published private(set) var closeAction: FlickAction
     @Published private(set) var openAction: FlickAction
     @Published private(set) var privacySettings: FlickPrivacySettings
+    @Published private(set) var privacySnapshot: FlickPrivacySnapshot?
     @Published private(set) var activity: [ActivityLogEntry] = []
 
     init() {
-        closeAction = Self.savedAction(for: .close, fallback: .arrange)
-        openAction = Self.savedAction(for: .open, fallback: .focus)
+        let assignments = FlickActionAssignmentStore.load()
+        actionAssignments = assignments
+        closeAction = assignments.closeAction
+        openAction = assignments.openAction
         privacySettings = FlickPrivacySettingsStore.load()
+        privacySnapshot = FlickPrivacySnapshotStore.load()
     }
 
     var monitoringDetail: String {
@@ -61,19 +66,28 @@ final class FlickArrangeAppState: ObservableObject {
     }
 
     func action(for gesture: FlickGesture) -> FlickAction {
-        switch gesture {
-        case .close: return closeAction
-        case .open: return openAction
-        }
+        actionAssignments.action(for: gesture)
+    }
+
+    func assignmentOrigin(for gesture: FlickGesture) -> FlickActionAssignmentOrigin {
+        actionAssignments.origin(for: gesture)
     }
 
     func setAction(_ action: FlickAction, for gesture: FlickGesture) {
-        switch gesture {
-        case .close: closeAction = action
-        case .open: openAction = action
-        }
-        UserDefaults.standard.set(action.rawValue, forKey: Self.actionKey(for: gesture))
+        let pairedGesture: FlickGesture = gesture == .close ? .open : .close
+        let previousPairedAction = actionAssignments.action(for: pairedGesture)
+        actionAssignments.assignManually(action, to: gesture)
+        closeAction = actionAssignments.closeAction
+        openAction = actionAssignments.openAction
+        FlickActionAssignmentStore.save(actionAssignments)
         addActivity("\(gesture.title) assigned to \(action.title)")
+
+        let pairedAction = actionAssignments.action(for: pairedGesture)
+        if pairedAction != previousPairedAction {
+            let origin = actionAssignments.origin(for: pairedGesture)
+            let note = origin == .automatic ? "automatically paired" : "restored to default"
+            addActivity("\(pairedGesture.title) \(note): \(pairedAction.title)")
+        }
     }
 
     func updatePrivacySettings(_ update: (inout FlickPrivacySettings) -> Void) {
@@ -111,6 +125,25 @@ final class FlickArrangeAppState: ObservableObject {
         addActivity(result.summary, kind: summaryKind)
     }
 
+    func recordPrivacyCancel(_ result: FlickPrivacyCancelResult) {
+        for failure in result.failures {
+            addActivity("Privacy Cancel \(failure.step.rawValue): \(failure.detail)", kind: .failure)
+        }
+        lastActionStatus = result.summary
+        let summaryKind: ActivityLogEntry.Kind = result.fullyRestored ? .success : .failure
+        addActivity(result.summary, kind: summaryKind)
+    }
+
+    func setPrivacySnapshot(_ snapshot: FlickPrivacySnapshot) {
+        privacySnapshot = snapshot
+        FlickPrivacySnapshotStore.save(snapshot)
+    }
+
+    func clearPrivacySnapshot() {
+        privacySnapshot = nil
+        FlickPrivacySnapshotStore.clear()
+    }
+
     func recordFailure(_ message: String) {
         lastActionStatus = message
         addActivity(message, kind: .failure)
@@ -127,17 +160,6 @@ final class FlickArrangeAppState: ObservableObject {
         return formatter
     }()
 
-    private static func actionKey(for gesture: FlickGesture) -> String {
-        "FlickActionAssignment.\(gesture.rawValue)"
-    }
-
-    private static func savedAction(for gesture: FlickGesture, fallback: FlickAction) -> FlickAction {
-        guard let rawValue = UserDefaults.standard.string(forKey: actionKey(for: gesture)),
-              let action = FlickAction(rawValue: rawValue) else {
-            return fallback
-        }
-        return action
-    }
 }
 
 struct ActivityLogEntry: Identifiable {
@@ -216,6 +238,7 @@ final class FlickArrangeController: NSObject {
         menu.addItem(menuItem("Focus Active Window", action: #selector(focusNow)))
         menu.addItem(menuItem("Hide Apps for Desktop", action: #selector(hideNow)))
         menu.addItem(menuItem("Apply Flick Privacy", action: #selector(privacyNow)))
+        menu.addItem(menuItem("Cancel Flick Privacy", action: #selector(privacyCancelNow)))
         menu.addItem(menuItem("Preview Current Layout", action: #selector(previewLayout), key: "p"))
         menu.addItem(.separator())
         menu.addItem(menuItem("Open Accessibility Settings", action: #selector(openAccessibilitySettings)))
@@ -310,6 +333,8 @@ final class FlickArrangeController: NSObject {
             runWorkspaceAction(action, reason: reason)
         case .privacy:
             runPrivacyAction(reason: reason)
+        case .privacyCancel:
+            runPrivacyCancelAction(reason: reason)
         }
     }
 
@@ -360,7 +385,7 @@ final class FlickArrangeController: NSObject {
                     result = try workspaceActions.focus(preferredActiveProcessID: preferredActiveProcessID)
                 case .hide:
                     result = try workspaceActions.hideAllApps()
-                case .arrange, .privacy:
+                case .arrange, .privacy, .privacyCancel:
                     return
                 }
                 DispatchQueue.main.async {
@@ -389,12 +414,46 @@ final class FlickArrangeController: NSObject {
         let settings = state.privacySettings
         let preferredActiveProcessID = lastExternalApplicationPID
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = privacyExecutor.apply(
+            let capture = privacyExecutor.captureSnapshot(
                 settings: settings,
                 preferredActiveProcessID: preferredActiveProcessID
             )
+            // Persist before applying any changes so Cancel remains available
+            // even if a later Privacy step or the app process exits unexpectedly.
+            FlickPrivacySnapshotStore.save(capture.snapshot)
+            let result = privacyExecutor.apply(
+                settings: settings,
+                preferredActiveProcessID: preferredActiveProcessID,
+                capture: capture
+            )
+            FlickPrivacySnapshotStore.save(result.snapshot)
             DispatchQueue.main.async {
                 self?.finishPrivacyAction(result, reason: reason)
+            }
+        }
+    }
+
+    private func runPrivacyCancelAction(reason: String) {
+        guard !state.isArranging else {
+            state.addActivity("Another Flick action is already in progress")
+            return
+        }
+        guard let snapshot = state.privacySnapshot else {
+            state.recordFailure("No Flick Privacy state to restore.")
+            rebuildMenu()
+            return
+        }
+
+        state.refreshAccessibilityStatus()
+        state.setArranging(true)
+        state.addActivity("Running Flick Privacy Cancel...")
+        rebuildMenu()
+
+        let privacyExecutor = privacyExecutor
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = privacyExecutor.cancel(snapshot: snapshot)
+            DispatchQueue.main.async {
+                self?.finishPrivacyCancelAction(result, reason: reason)
             }
         }
     }
@@ -424,6 +483,7 @@ final class FlickArrangeController: NSObject {
     private func finishPrivacyAction(_ result: FlickPrivacyResult, reason: String) {
         state.setArranging(false)
         state.refreshAccessibilityStatus()
+        state.setPrivacySnapshot(result.snapshot)
         state.recordPrivacyAction(result)
         print("FlickArrange: \(reason) ran Flick Privacy with \(result.failures.count) warning(s)")
         statusItem.button?.title = "Flick"
@@ -433,6 +493,25 @@ final class FlickArrangeController: NSObject {
             showAlert(
                 title: "Flick Privacy needs Accessibility",
                 message: "The other enabled Privacy steps completed, but focusing the active window needs permission.\n\nAllow Flick in System Settings > Privacy & Security > Accessibility, then quit and reopen the app."
+            )
+        }
+    }
+
+    private func finishPrivacyCancelAction(_ result: FlickPrivacyCancelResult, reason: String) {
+        state.setArranging(false)
+        state.refreshAccessibilityStatus()
+        state.recordPrivacyCancel(result)
+        if result.fullyRestored {
+            state.clearPrivacySnapshot()
+        }
+        print("FlickArrange: \(reason) ran Flick Privacy Cancel with \(result.failures.count) warning(s)")
+        statusItem.button?.title = "Flick"
+        rebuildMenu()
+
+        if result.needsAccessibilityPermission {
+            showAlert(
+                title: "Flick Privacy Cancel needs Accessibility",
+                message: "The available Privacy state was restored, but restoring the previous active window needs permission.\n\nAllow Flick in System Settings > Privacy & Security > Accessibility, then quit and reopen the app."
             )
         }
     }
@@ -545,6 +624,10 @@ final class FlickArrangeController: NSObject {
 
     @objc private func privacyNow() {
         runAction(.privacy, reason: "Manual privacy")
+    }
+
+    @objc private func privacyCancelNow() {
+        runAction(.privacyCancel, reason: "Manual privacy cancel")
     }
 
     @objc private func previewLayout() {

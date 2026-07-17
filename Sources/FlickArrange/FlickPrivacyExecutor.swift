@@ -4,6 +4,7 @@ import Darwin
 import Foundation
 
 enum FlickPrivacyStep: String {
+    case snapshot
     case brightness
     case volume
     case privacyApps
@@ -18,10 +19,16 @@ struct FlickPrivacyStepResult {
     let detail: String
 }
 
+struct FlickPrivacySnapshotCapture {
+    let snapshot: FlickPrivacySnapshot
+    let warnings: [FlickPrivacyStepResult]
+}
+
 struct FlickPrivacyResult {
     let steps: [FlickPrivacyStepResult]
     let summaryItems: [String]
     let needsAccessibilityPermission: Bool
+    let snapshot: FlickPrivacySnapshot
 
     var failures: [FlickPrivacyStepResult] {
         steps.filter { !$0.succeeded }
@@ -34,11 +41,57 @@ struct FlickPrivacyResult {
     }
 }
 
+enum FlickPrivacyCancelStep: String {
+    case brightness
+    case volume
+    case hiddenApps
+    case workMode
+    case activeWindow
+
+    var title: String {
+        switch self {
+        case .brightness: return "brightness"
+        case .volume: return "volume"
+        case .hiddenApps: return "hidden apps"
+        case .workMode: return "Focus mode"
+        case .activeWindow: return "active window"
+        }
+    }
+}
+
+struct FlickPrivacyCancelStepResult {
+    let step: FlickPrivacyCancelStep
+    let succeeded: Bool
+    let detail: String
+}
+
+struct FlickPrivacyCancelResult {
+    let steps: [FlickPrivacyCancelStepResult]
+    let summaryItems: [String]
+    let needsAccessibilityPermission: Bool
+
+    var failures: [FlickPrivacyCancelStepResult] {
+        steps.filter { !$0.succeeded }
+    }
+
+    var fullyRestored: Bool { failures.isEmpty }
+
+    var summary: String {
+        let restored = summaryItems.isEmpty ? "no changed state needed restoration" : summaryItems.joined(separator: ", ")
+        guard !failures.isEmpty else {
+            return "Flick Privacy Cancel restored \(restored)."
+        }
+        let unavailable = failures.map(\.step.title).joined(separator: ", ")
+        return "Flick Privacy Cancel partially restored: \(restored); \(unavailable) unavailable."
+    }
+}
+
 private enum FlickPrivacyExecutionError: LocalizedError {
     case builtInDisplayUnavailable
     case privateFrameworkUnavailable(String)
     case operationRejected(String)
-    case shortcutNotConfigured
+    case shortcutNotConfigured(String)
+    case snapshotValueUnavailable(String)
     case commandFailed(String)
 
     var errorDescription: String? {
@@ -49,8 +102,10 @@ private enum FlickPrivacyExecutionError: LocalizedError {
             return "\(feature) is unavailable on this macOS version."
         case let .operationRejected(feature):
             return "macOS rejected the \(feature) request."
-        case .shortcutNotConfigured:
-            return "Choose a macOS Shortcut that enables your preferred work Focus."
+        case let .shortcutNotConfigured(purpose):
+            return "Choose a macOS Shortcut for \(purpose)."
+        case let .snapshotValueUnavailable(value):
+            return "The previous \(value) was not available in the Privacy snapshot."
         case let .commandFailed(message):
             return message
         }
@@ -60,28 +115,93 @@ private enum FlickPrivacyExecutionError: LocalizedError {
 struct FlickPrivacyExecutor {
     private let workspaceActions = WorkspaceActionExecutor()
 
-    func apply(
+    func captureSnapshot(
         settings: FlickPrivacySettings,
         preferredActiveProcessID: pid_t?
-    ) -> FlickPrivacyResult {
-        var steps: [FlickPrivacyStepResult] = []
-        var summaryItems: [String] = []
-        var needsAccessibilityPermission = false
+    ) -> FlickPrivacySnapshotCapture {
+        var snapshot = FlickPrivacySnapshot(
+            focusStateBefore: settings.workModeEnabled ? .unavailable : .notCaptured,
+            workModeRestoreShortcutName: settings.workModeCancelShortcutName
+        )
+        var warnings: [FlickPrivacyStepResult] = []
 
         if settings.dimDisplayEnabled {
-            let percent = Int((settings.targetBrightness * 100).rounded())
-            record(step: .brightness, into: &steps) {
-                try setBuiltInDisplayBrightness(settings.targetBrightness)
-                summaryItems.append("brightness \(percent)%")
-                return "Set built-in display brightness to \(percent)%."
+            do {
+                snapshot.brightnessBefore = try builtInDisplayBrightness()
+            } catch {
+                warnings.append(FlickPrivacyStepResult(
+                    step: .snapshot,
+                    succeeded: false,
+                    detail: "Could not save the previous brightness: \(error.localizedDescription)"
+                ))
             }
         }
 
         if settings.muteVolumeEnabled {
-            record(step: .volume, into: &steps) {
-                try runCommand("/usr/bin/osascript", arguments: ["-e", "set volume output volume 0"])
-                summaryItems.append("muted volume")
+            do {
+                snapshot.outputVolumeBefore = try systemOutputVolume()
+            } catch {
+                warnings.append(FlickPrivacyStepResult(
+                    step: .snapshot,
+                    succeeded: false,
+                    detail: "Could not save the previous volume: \(error.localizedDescription)"
+                ))
+            }
+        }
+
+        if settings.hidePrivacyAppsEnabled || settings.focusActiveWindowEnabled {
+            snapshot.activeContext = workspaceActions.captureActiveContext(
+                preferredProcessID: preferredActiveProcessID
+            )
+            if snapshot.activeContext == nil {
+                warnings.append(FlickPrivacyStepResult(
+                    step: .snapshot,
+                    succeeded: false,
+                    detail: "Could not save the previously active app and window."
+                ))
+            }
+        }
+
+        if settings.workModeEnabled {
+            warnings.append(FlickPrivacyStepResult(
+                step: .snapshot,
+                succeeded: false,
+                detail: "macOS does not expose the current Focus state. Cancel will use the configured restore Shortcut."
+            ))
+        }
+
+        return FlickPrivacySnapshotCapture(snapshot: snapshot, warnings: warnings)
+    }
+
+    func apply(
+        settings: FlickPrivacySettings,
+        preferredActiveProcessID: pid_t?,
+        capture: FlickPrivacySnapshotCapture
+    ) -> FlickPrivacyResult {
+        var snapshot = capture.snapshot
+        var steps = capture.warnings
+        var summaryItems: [String] = []
+        var needsAccessibilityPermission = false
+        var newlyHiddenBundleIdentifiers = Set<String>()
+
+        if settings.dimDisplayEnabled {
+            let percent = Int((settings.targetBrightness * 100).rounded())
+            if record(step: .brightness, into: &steps, operation: {
+                try setBuiltInDisplayBrightness(settings.targetBrightness)
+                return "Set built-in display brightness to \(percent)%."
+            }) {
+                snapshot.changedBrightness = true
+                summaryItems.append("brightness \(percent)%")
+            }
+        }
+
+        if settings.muteVolumeEnabled {
+            if record(step: .volume, into: &steps, operation: {
+                try setSystemOutputVolume(0)
                 return "Set system output volume to 0%."
+            }) {
+                snapshot.changedVolume = true
+                summaryItems.append("muted volume")
             }
         }
 
@@ -89,6 +209,7 @@ struct FlickPrivacyExecutor {
             let result = workspaceActions.hideApplications(
                 bundleIdentifiers: Set(settings.hiddenAppBundleIdentifiers)
             )
+            newlyHiddenBundleIdentifiers.formUnion(result.hiddenBundleIdentifiers)
             let failedCount = result.failedBundleIdentifiers.count
             let detail = "Hid \(result.hiddenCount) privacy apps; \(result.alreadyHiddenCount) were already hidden."
             summaryItems.append("hid \(result.hiddenCount) privacy apps")
@@ -97,31 +218,39 @@ struct FlickPrivacyExecutor {
                 succeeded: failedCount == 0,
                 detail: failedCount == 0 ? detail : "\(detail) Could not hide \(failedCount) app(s)."
             ))
+            if result.hiddenCount > 0 {
+                snapshot.changedActiveContext = true
+            }
         }
 
         if settings.workModeEnabled {
-            record(step: .workMode, into: &steps) {
+            if record(step: .workMode, into: &steps, operation: {
                 let shortcutName = settings.workModeShortcutName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !shortcutName.isEmpty else {
-                    throw FlickPrivacyExecutionError.shortcutNotConfigured
+                    throw FlickPrivacyExecutionError.shortcutNotConfigured("enabling work mode")
                 }
-                try runCommand("/usr/bin/shortcuts", arguments: ["run", shortcutName])
-                summaryItems.append("enabled work mode")
+                _ = try runCommand("/usr/bin/shortcuts", arguments: ["run", shortcutName])
                 return "Ran the \(shortcutName) Shortcut."
+            }) {
+                snapshot.changedWorkMode = true
+                summaryItems.append("enabled work mode")
             }
         }
 
         if settings.pauseMediaEnabled {
-            record(step: .media, into: &steps) {
+            if record(step: .media, into: &steps, operation: {
                 try pauseSystemMedia()
-                summaryItems.append("paused media")
                 return "Sent the system media pause command."
+            }) {
+                summaryItems.append("paused media")
             }
         }
 
         if settings.focusActiveWindowEnabled {
             do {
                 let result = try workspaceActions.focus(preferredActiveProcessID: preferredActiveProcessID)
+                newlyHiddenBundleIdentifiers.formUnion(result.affectedApplicationBundleIdentifiers)
+                snapshot.changedActiveContext = true
                 summaryItems.append("focused active window")
                 steps.append(FlickPrivacyStepResult(
                     step: .focus,
@@ -140,40 +269,174 @@ struct FlickPrivacyExecutor {
             }
         }
 
+        snapshot.hiddenApplicationBundleIdentifiers = workspaceActions.currentlyHiddenBundleIdentifiers(
+            from: newlyHiddenBundleIdentifiers
+        )
         return FlickPrivacyResult(
+            steps: steps,
+            summaryItems: summaryItems,
+            needsAccessibilityPermission: needsAccessibilityPermission,
+            snapshot: snapshot
+        )
+    }
+
+    func cancel(snapshot: FlickPrivacySnapshot) -> FlickPrivacyCancelResult {
+        var steps: [FlickPrivacyCancelStepResult] = []
+        var summaryItems: [String] = []
+        var needsAccessibilityPermission = false
+
+        if snapshot.changedBrightness {
+            if let brightness = snapshot.brightnessBefore {
+                if recordCancel(step: .brightness, into: &steps, operation: {
+                    try setBuiltInDisplayBrightness(brightness)
+                    return "Restored brightness to \(Int((brightness * 100).rounded()))%."
+                }) {
+                    summaryItems.append("brightness")
+                }
+            } else {
+                appendMissingSnapshotValue("brightness", step: .brightness, to: &steps)
+            }
+        }
+
+        if snapshot.changedVolume {
+            if let volume = snapshot.outputVolumeBefore {
+                if recordCancel(step: .volume, into: &steps, operation: {
+                    try setSystemOutputVolume(volume)
+                    return "Restored output volume to \(volume)%."
+                }) {
+                    summaryItems.append("volume")
+                }
+            } else {
+                appendMissingSnapshotValue("volume", step: .volume, to: &steps)
+            }
+        }
+
+        if !snapshot.hiddenApplicationBundleIdentifiers.isEmpty {
+            let result = workspaceActions.restoreApplications(
+                bundleIdentifiers: Set(snapshot.hiddenApplicationBundleIdentifiers)
+            )
+            let restoredCount = result.restoredBundleIdentifiers.count
+            let unavailableCount = result.unavailableBundleIdentifiers.count
+            let failedCount = result.failedBundleIdentifiers.count
+            if restoredCount > 0 {
+                summaryItems.append("\(restoredCount) hidden apps")
+            }
+            steps.append(FlickPrivacyCancelStepResult(
+                step: .hiddenApps,
+                succeeded: unavailableCount == 0 && failedCount == 0,
+                detail: "Restored \(restoredCount) app(s); \(unavailableCount) no longer running; \(failedCount) failed."
+            ))
+        }
+
+        if snapshot.changedWorkMode {
+            if recordCancel(step: .workMode, into: &steps, operation: {
+                let shortcutName = snapshot.workModeRestoreShortcutName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !shortcutName.isEmpty else {
+                    throw FlickPrivacyExecutionError.shortcutNotConfigured("restoring the previous Focus mode")
+                }
+                _ = try runCommand("/usr/bin/shortcuts", arguments: ["run", shortcutName])
+                return "Ran the \(shortcutName) restore Shortcut."
+            }) {
+                summaryItems.append("work mode")
+            }
+        }
+
+        if snapshot.changedActiveContext {
+            if let activeContext = snapshot.activeContext {
+                let result = workspaceActions.restoreActiveContext(activeContext)
+                needsAccessibilityPermission = result.needsAccessibilityPermission
+                if result.restoredWindow {
+                    summaryItems.append("active window")
+                } else if result.restoredApplication {
+                    summaryItems.append("active app")
+                }
+                steps.append(FlickPrivacyCancelStepResult(
+                    step: .activeWindow,
+                    succeeded: result.restoredApplication && result.restoredWindow,
+                    detail: result.detail
+                ))
+            } else {
+                appendMissingSnapshotValue("active window", step: .activeWindow, to: &steps)
+            }
+        }
+
+        return FlickPrivacyCancelResult(
             steps: steps,
             summaryItems: summaryItems,
             needsAccessibilityPermission: needsAccessibilityPermission
         )
     }
 
+    @discardableResult
     private func record(
         step: FlickPrivacyStep,
         into results: inout [FlickPrivacyStepResult],
         operation: () throws -> String
-    ) {
+    ) -> Bool {
         do {
             results.append(FlickPrivacyStepResult(step: step, succeeded: true, detail: try operation()))
+            return true
         } catch {
             results.append(FlickPrivacyStepResult(
                 step: step,
                 succeeded: false,
                 detail: error.localizedDescription
             ))
+            return false
         }
     }
 
-    private func setBuiltInDisplayBrightness(_ target: Double) throws {
-        guard let displayID = builtInDisplayID() else {
-            throw FlickPrivacyExecutionError.builtInDisplayUnavailable
+    @discardableResult
+    private func recordCancel(
+        step: FlickPrivacyCancelStep,
+        into results: inout [FlickPrivacyCancelStepResult],
+        operation: () throws -> String
+    ) -> Bool {
+        do {
+            results.append(FlickPrivacyCancelStepResult(step: step, succeeded: true, detail: try operation()))
+            return true
+        } catch {
+            results.append(FlickPrivacyCancelStepResult(
+                step: step,
+                succeeded: false,
+                detail: error.localizedDescription
+            ))
+            return false
         }
+    }
 
-        // macOS has no public API for setting display brightness. Resolve the
-        // private symbol at runtime so unsupported systems fail this step only.
-        let frameworkPath = "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
-        guard let handle = dlopen(frameworkPath, RTLD_LAZY) else {
-            throw FlickPrivacyExecutionError.privateFrameworkUnavailable("display brightness control")
+    private func appendMissingSnapshotValue(
+        _ value: String,
+        step: FlickPrivacyCancelStep,
+        to results: inout [FlickPrivacyCancelStepResult]
+    ) {
+        results.append(FlickPrivacyCancelStepResult(
+            step: step,
+            succeeded: false,
+            detail: FlickPrivacyExecutionError.snapshotValueUnavailable(value).localizedDescription
+        ))
+    }
+
+    private func builtInDisplayBrightness() throws -> Double {
+        let displayID = try requireBuiltInDisplayID()
+        let handle = try displayServicesHandle()
+        defer { dlclose(handle) }
+
+        guard let symbol = dlsym(handle, "DisplayServicesGetBrightness") else {
+            throw FlickPrivacyExecutionError.privateFrameworkUnavailable("display brightness reading")
         }
+        typealias GetBrightness = @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
+        let getBrightness = unsafeBitCast(symbol, to: GetBrightness.self)
+        var brightness: Float = 0
+        guard getBrightness(displayID, &brightness) == 0 else {
+            throw FlickPrivacyExecutionError.operationRejected("display brightness reading")
+        }
+        return Double(brightness)
+    }
+
+    private func setBuiltInDisplayBrightness(_ target: Double) throws {
+        let displayID = try requireBuiltInDisplayID()
+        let handle = try displayServicesHandle()
         defer { dlclose(handle) }
 
         guard let symbol = dlsym(handle, "DisplayServicesSetBrightness") else {
@@ -185,6 +448,21 @@ struct FlickPrivacyExecutor {
         guard status == 0 else {
             throw FlickPrivacyExecutionError.operationRejected("display brightness")
         }
+    }
+
+    private func requireBuiltInDisplayID() throws -> CGDirectDisplayID {
+        guard let displayID = builtInDisplayID() else {
+            throw FlickPrivacyExecutionError.builtInDisplayUnavailable
+        }
+        return displayID
+    }
+
+    private func displayServicesHandle() throws -> UnsafeMutableRawPointer {
+        let frameworkPath = "/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices"
+        guard let handle = dlopen(frameworkPath, RTLD_LAZY) else {
+            throw FlickPrivacyExecutionError.privateFrameworkUnavailable("display brightness control")
+        }
+        return handle
     }
 
     private func builtInDisplayID() -> CGDirectDisplayID? {
@@ -199,6 +477,25 @@ struct FlickPrivacyExecutor {
             return nil
         }
         return displays.prefix(Int(displayCount)).first { CGDisplayIsBuiltin($0) != 0 }
+    }
+
+    private func systemOutputVolume() throws -> Int {
+        let output = try runCommand(
+            "/usr/bin/osascript",
+            arguments: ["-e", "output volume of (get volume settings)"]
+        )
+        guard let volume = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw FlickPrivacyExecutionError.commandFailed("Could not read the current output volume.")
+        }
+        return min(max(volume, 0), 100)
+    }
+
+    private func setSystemOutputVolume(_ volume: Int) throws {
+        let clampedVolume = min(max(volume, 0), 100)
+        _ = try runCommand(
+            "/usr/bin/osascript",
+            arguments: ["-e", "set volume output volume \(clampedVolume)"]
+        )
     }
 
     private func pauseSystemMedia() throws {
@@ -225,10 +522,11 @@ struct FlickPrivacyExecutor {
             return 'pause sent';
         }
         """
-        try runCommand("/usr/bin/osascript", arguments: ["-l", "JavaScript", "-e", script])
+        _ = try runCommand("/usr/bin/osascript", arguments: ["-l", "JavaScript", "-e", script])
     }
 
-    private func runCommand(_ executablePath: String, arguments: [String]) throws {
+    @discardableResult
+    private func runCommand(_ executablePath: String, arguments: [String]) throws -> String {
         let process = Process()
         let outputPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: executablePath)
@@ -243,12 +541,13 @@ struct FlickPrivacyExecutor {
         }
         process.waitUntilExit()
 
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard process.terminationStatus == 0 else {
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw FlickPrivacyExecutionError.commandFailed(
-                message?.isEmpty == false ? message! : "Command exited with status \(process.terminationStatus)."
+                output.isEmpty ? "Command exited with status \(process.terminationStatus)." : output
             )
         }
+        return output
     }
 }

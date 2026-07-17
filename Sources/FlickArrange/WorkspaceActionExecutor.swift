@@ -6,6 +6,19 @@ struct WorkspaceActionResult {
     let action: FlickAction
     let affectedApplicationCount: Int
     let affectedWindowCount: Int
+    let affectedApplicationBundleIdentifiers: [String]
+
+    init(
+        action: FlickAction,
+        affectedApplicationCount: Int,
+        affectedWindowCount: Int,
+        affectedApplicationBundleIdentifiers: [String] = []
+    ) {
+        self.action = action
+        self.affectedApplicationCount = affectedApplicationCount
+        self.affectedWindowCount = affectedWindowCount
+        self.affectedApplicationBundleIdentifiers = affectedApplicationBundleIdentifiers
+    }
 
     var summary: String {
         switch action {
@@ -13,7 +26,7 @@ struct WorkspaceActionResult {
             return "Flick Focus kept the active window visible and hid \(affectedApplicationCount) apps."
         case .hide:
             return "Flick Hide hid \(affectedApplicationCount) apps to reveal the Desktop."
-        case .arrange, .privacy:
+        case .arrange, .privacy, .privacyCancel:
             return ""
         }
     }
@@ -22,7 +35,21 @@ struct WorkspaceActionResult {
 struct WorkspaceApplicationHideResult {
     let hiddenCount: Int
     let alreadyHiddenCount: Int
+    let hiddenBundleIdentifiers: [String]
     let failedBundleIdentifiers: [String]
+}
+
+struct WorkspaceApplicationRestoreResult {
+    let restoredBundleIdentifiers: [String]
+    let unavailableBundleIdentifiers: [String]
+    let failedBundleIdentifiers: [String]
+}
+
+struct WorkspaceActiveRestoreResult {
+    let restoredApplication: Bool
+    let restoredWindow: Bool
+    let needsAccessibilityPermission: Bool
+    let detail: String
 }
 
 enum WorkspaceActionError: Error, CustomStringConvertible, LocalizedError {
@@ -52,11 +79,15 @@ struct WorkspaceActionExecutor: Sendable {
         let activeElement = AXUIElementCreateApplication(activeProcessID)
         let focusedWindow = focusedWindow(of: activeElement)
         var hiddenApplicationCount = 0
+        var hiddenBundleIdentifiers: [String] = []
         var minimizedWindowCount = 0
 
         for application in controllableApplications() where application.processIdentifier != activeProcessID {
             if hide(application) {
                 hiddenApplicationCount += 1
+                if let bundleIdentifier = application.bundleIdentifier {
+                    hiddenBundleIdentifiers.append(bundleIdentifier)
+                }
             }
         }
 
@@ -78,30 +109,37 @@ struct WorkspaceActionExecutor: Sendable {
         return WorkspaceActionResult(
             action: .focus,
             affectedApplicationCount: hiddenApplicationCount,
-            affectedWindowCount: minimizedWindowCount
+            affectedWindowCount: minimizedWindowCount,
+            affectedApplicationBundleIdentifiers: hiddenBundleIdentifiers
         )
     }
 
     func hideAllApps() throws -> WorkspaceActionResult {
         try requireAccessibilityPermission()
         var hiddenApplicationCount = 0
+        var hiddenBundleIdentifiers: [String] = []
 
         for application in controllableApplications() {
             if hide(application) {
                 hiddenApplicationCount += 1
+                if let bundleIdentifier = application.bundleIdentifier {
+                    hiddenBundleIdentifiers.append(bundleIdentifier)
+                }
             }
         }
 
         return WorkspaceActionResult(
             action: .hide,
             affectedApplicationCount: hiddenApplicationCount,
-            affectedWindowCount: 0
+            affectedWindowCount: 0,
+            affectedApplicationBundleIdentifiers: hiddenBundleIdentifiers
         )
     }
 
     func hideApplications(bundleIdentifiers: Set<String>) -> WorkspaceApplicationHideResult {
         var hiddenCount = 0
         var alreadyHiddenCount = 0
+        var hiddenBundleIdentifiers: [String] = []
         var failedBundleIdentifiers: [String] = []
 
         let applications = controllableApplications().filter { application in
@@ -114,6 +152,9 @@ struct WorkspaceActionExecutor: Sendable {
                 alreadyHiddenCount += 1
             } else if hide(application) {
                 hiddenCount += 1
+                if let bundleIdentifier = application.bundleIdentifier {
+                    hiddenBundleIdentifiers.append(bundleIdentifier)
+                }
             } else if let bundleIdentifier = application.bundleIdentifier {
                 failedBundleIdentifiers.append(bundleIdentifier)
             }
@@ -122,7 +163,130 @@ struct WorkspaceActionExecutor: Sendable {
         return WorkspaceApplicationHideResult(
             hiddenCount: hiddenCount,
             alreadyHiddenCount: alreadyHiddenCount,
+            hiddenBundleIdentifiers: hiddenBundleIdentifiers,
             failedBundleIdentifiers: failedBundleIdentifiers
+        )
+    }
+
+    func captureActiveContext(preferredProcessID: pid_t?) -> FlickPrivacyActiveContext? {
+        guard let application = activeApplication(preferredProcessID: preferredProcessID),
+              let bundleIdentifier = application.bundleIdentifier else {
+            return nil
+        }
+
+        let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        let windowTitle = focusedWindow(of: applicationElement).flatMap {
+            stringAttribute(kAXTitleAttribute as CFString, from: $0)
+        }
+        return FlickPrivacyActiveContext(
+            bundleIdentifier: bundleIdentifier,
+            processIdentifier: Int32(application.processIdentifier),
+            focusedWindowTitle: windowTitle
+        )
+    }
+
+    func currentlyHiddenBundleIdentifiers(from bundleIdentifiers: Set<String>) -> [String] {
+        bundleIdentifiers.filter { bundleIdentifier in
+            NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).contains {
+                !$0.isTerminated && $0.isHidden
+            }
+        }.sorted()
+    }
+
+    func restoreApplications(bundleIdentifiers: Set<String>) -> WorkspaceApplicationRestoreResult {
+        var restored: [String] = []
+        var unavailable: [String] = []
+        var failed: [String] = []
+
+        for bundleIdentifier in bundleIdentifiers.sorted() {
+            let applications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+                .filter { !$0.isTerminated }
+            guard !applications.isEmpty else {
+                unavailable.append(bundleIdentifier)
+                continue
+            }
+
+            if applications.contains(where: unhide) {
+                restored.append(bundleIdentifier)
+            } else {
+                failed.append(bundleIdentifier)
+            }
+        }
+
+        return WorkspaceApplicationRestoreResult(
+            restoredBundleIdentifiers: restored,
+            unavailableBundleIdentifiers: unavailable,
+            failedBundleIdentifiers: failed
+        )
+    }
+
+    func restoreActiveContext(_ context: FlickPrivacyActiveContext) -> WorkspaceActiveRestoreResult {
+        let processID = pid_t(context.processIdentifier)
+        let processApplication = NSRunningApplication(processIdentifier: processID)
+        let application: NSRunningApplication?
+        if let processApplication,
+           processApplication.bundleIdentifier == context.bundleIdentifier,
+           !processApplication.isTerminated {
+            application = processApplication
+        } else {
+            application = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+                .first { !$0.isTerminated }
+        }
+
+        guard let application else {
+            return WorkspaceActiveRestoreResult(
+                restoredApplication: false,
+                restoredWindow: false,
+                needsAccessibilityPermission: false,
+                detail: "The previously active app is no longer running."
+            )
+        }
+
+        _ = unhide(application)
+        let activated = application.activate(options: [.activateIgnoringOtherApps])
+        guard let windowTitle = context.focusedWindowTitle, !windowTitle.isEmpty else {
+            return WorkspaceActiveRestoreResult(
+                restoredApplication: activated,
+                restoredWindow: activated,
+                needsAccessibilityPermission: false,
+                detail: activated ? "Restored the previously active app." : "Could not reactivate the previous app."
+            )
+        }
+
+        guard AXIsProcessTrusted() else {
+            return WorkspaceActiveRestoreResult(
+                restoredApplication: activated,
+                restoredWindow: false,
+                needsAccessibilityPermission: true,
+                detail: "Restored the app, but Accessibility permission is needed to restore its active window."
+            )
+        }
+
+        let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        guard let targetWindow = windows(of: applicationElement).first(where: {
+            stringAttribute(kAXTitleAttribute as CFString, from: $0) == windowTitle
+        }) else {
+            return WorkspaceActiveRestoreResult(
+                restoredApplication: activated,
+                restoredWindow: false,
+                needsAccessibilityPermission: false,
+                detail: "Restored the app, but its previous window is no longer available."
+            )
+        }
+
+        if isMinimized(targetWindow) {
+            _ = AXUIElementSetAttributeValue(
+                targetWindow,
+                kAXMinimizedAttribute as CFString,
+                kCFBooleanFalse
+            )
+        }
+        let raised = AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString) == .success
+        return WorkspaceActiveRestoreResult(
+            restoredApplication: activated,
+            restoredWindow: raised,
+            needsAccessibilityPermission: false,
+            detail: raised ? "Restored the previously active window." : "Could not raise the previous window."
         )
     }
 
@@ -167,6 +331,21 @@ struct WorkspaceActionExecutor: Sendable {
             element,
             kAXHiddenAttribute as CFString,
             kCFBooleanTrue
+        ) == .success
+    }
+
+    private func unhide(_ application: NSRunningApplication) -> Bool {
+        guard application.isHidden else { return true }
+        if application.unhide() {
+            return true
+        }
+
+        guard AXIsProcessTrusted() else { return false }
+        let element = AXUIElementCreateApplication(application.processIdentifier)
+        return AXUIElementSetAttributeValue(
+            element,
+            kAXHiddenAttribute as CFString,
+            kCFBooleanFalse
         ) == .success
     }
 
