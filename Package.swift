@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "FlickArrange",
+    name: "Flick",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "FlickArrange", targets: ["FlickArrange"])
+        .executable(name: "Flick", targets: ["Flick"])
     ],
     targets: [
         .executableTarget(
-            name: "FlickArrange",
+            name: "Flick",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),

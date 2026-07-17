@@ -1,8 +1,8 @@
 # Setup:
 #   pip3 install pybooklid
-#   python3 flick_arrange_prototype.py
+#   python3 flick_prototype.py
 
-"""Flick Arrange sensor-reading, gesture detection, and window-grid prototype.
+"""Flick sensor-reading, gesture detection, and window-grid prototype.
 
 This prototype watches MacBook lid angle samples and detects a quick
 close-then-open trajectory, then arranges visible macOS windows.
@@ -935,7 +935,7 @@ def print_accessibility_help_if_needed(message: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Flick Arrange prototype")
+    parser = argparse.ArgumentParser(description="Flick prototype")
     parser.add_argument(
         "--arrange-once",
         action="store_true",
@@ -979,7 +979,7 @@ def main() -> None:
         arrange_windows_grid(verbose=args.verbose)
         return
 
-    print("Flick Arrange prototype")
+    print("Flick prototype")
     print("Reading lid angle. Press Ctrl+C to stop.")
     print("Gesture target: quick close partway, then reopen.")
 

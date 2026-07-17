@@ -2,7 +2,7 @@
 
 Flick Series is a macOS utility prototype that uses MacBook lid motion as an input device.
 
-The current app is **Flick Arrange**, but the product direction is broader: a small set of hinge gestures can trigger different workspace actions without keyboard shortcuts, mouse gestures, or AI.
+The macOS app is **Flick**. A small set of hinge gestures can trigger different workspace actions without keyboard shortcuts, mouse gestures, or AI.
 
 ## Core Idea
 
@@ -38,6 +38,8 @@ Each gesture can be assigned to one of these actions:
 | Flick Arrange | Arrange visible windows on the active screen and Space |
 | Flick Focus | Keep the active window visible and hide the rest |
 | Flick Hide | Hide general app windows to reveal the Desktop |
+| Flick Privacy | Apply the enabled display, audio, app-hiding, work-mode, media, and focus protections |
+| Flick Privacy Cancel | Restore the most recent state captured before Flick Privacy ran |
 
 Default assignments:
 
@@ -46,14 +48,14 @@ Default assignments:
 | Close | Flick Arrange |
 | Open | Flick Focus |
 
-Assignments are saved locally with `UserDefaults`.
+Assignments are saved locally with `UserDefaults`. Assigning Flick Privacy to one gesture automatically pairs Flick Privacy Cancel with the other gesture unless that other gesture has a saved manual choice.
 
 ## Current macOS App
 
 The Swift macOS app lives in:
 
 ```text
-Sources/FlickArrange
+Sources/Flick
 ```
 
 Main pieces:
@@ -63,13 +65,14 @@ Main pieces:
 - `OpenGestureDetector.swift` detects the Open gesture from motion trajectory.
 - `WindowArranger.swift` arranges windows with macOS Accessibility APIs.
 - `WorkspaceActionExecutor.swift` implements Flick Focus and Flick Hide.
-- `FlickArrangeDashboardView.swift` provides the dashboard UI and action assignment controls.
-- `FlickArrangeController.swift` connects sensor polling, gesture detection, and actions.
+- `FlickPrivacyExecutor.swift` applies Privacy protections and performs best-effort restoration from a saved snapshot.
+- `FlickDashboardView.swift` provides the dashboard UI and action assignment controls.
+- `FlickController.swift` connects sensor polling, gesture detection, and actions.
 
 There is also an earlier Python prototype:
 
 ```text
-flick_arrange_prototype.py
+flick_prototype.py
 ```
 
 The Swift app is the current implementation target.
@@ -89,10 +92,10 @@ Build with Xcode:
 
 ```sh
 xcodebuild \
-  -project FlickArrange.xcodeproj \
+  -project Flick.xcodeproj \
   -scheme Flick \
   -configuration Debug \
-  -derivedDataPath /private/tmp/FlickArrangeDerivedData \
+  -derivedDataPath /private/tmp/FlickDerivedData \
   build
 ```
 
@@ -101,28 +104,28 @@ xcodebuild \
 The install script builds the app, signs it with a stable local designated requirement, installs it into `/Applications`, and opens it:
 
 ```sh
-./scripts/install_flick_arrange.sh
+./scripts/install_flick.sh
 ```
 
 Installed app path:
 
 ```text
-/Applications/Flick Arrange.app
+/Applications/Flick.app
 ```
 
 ## Permissions
 
-Flick Arrange needs macOS Accessibility permission to inspect and move/hide windows.
+Flick needs macOS Accessibility permission to inspect, move, hide, and restore windows.
 
 Enable it here:
 
 ```text
-System Settings > Privacy & Security > Accessibility > Flick Arrange
+System Settings > Privacy & Security > Accessibility > Flick
 ```
 
 If macOS prompts for Automation or System Events access during experiments, allow it as well.
 
-If the app was rebuilt or replaced and permissions behave strangely, remove and re-add Flick Arrange in Accessibility settings.
+If the app was rebuilt or replaced and permissions behave strangely, remove and re-add Flick in Accessibility settings.
 
 ## Run
 
@@ -130,7 +133,7 @@ After launching the app:
 
 1. Open the dashboard from the status bar item.
 2. Choose `Close` or `Open`.
-3. Assign one of `Flick Arrange`, `Flick Focus`, or `Flick Hide`.
+3. Assign a Flick action, including `Flick Privacy` or `Flick Privacy Cancel`.
 4. Use the `Run` button to test the assigned action manually.
 5. Use the MacBook lid motion to trigger the assigned action.
 
@@ -161,4 +164,10 @@ The central idea is:
 Use the laptop hinge as an input device.
 ```
 
-Flick Arrange, Flick Focus, and Flick Hide are MVP actions for validating that interaction model.
+Flick Arrange, Flick Focus, Flick Hide, Flick Privacy, and Flick Privacy Cancel are MVP actions for validating that interaction model.
+
+## Privacy Restore Limits
+
+Flick Privacy stores the previous built-in display brightness, output volume, apps it actually hid, and the active app/window before applying changes. Flick Privacy Cancel restores those values independently so one failed step does not stop the others.
+
+macOS does not expose a stable public API for reading and restoring Focus state. Work-mode restoration therefore uses an optional user-configured Shortcut. Media playback is paused by Privacy but intentionally is not resumed by Cancel because the app cannot reliably identify the prior system media session.

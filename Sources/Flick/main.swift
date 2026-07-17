@@ -24,11 +24,11 @@ private func runCommandLineModeIfRequested() {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var controller: FlickArrangeController?
+    private var controller: FlickController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        controller = FlickArrangeController()
+        controller = FlickController()
         controller?.start()
     }
 

@@ -151,20 +151,20 @@ struct WindowArranger: Sendable {
         if !mainDisplayBounds.isEmpty {
             return mainScreenVisibleBounds(displayBounds: mainDisplayBounds) ?? mainDisplayBounds
         }
-        print("FlickArrange: CGMainDisplayID=\(CGMainDisplayID()) bounds=\(mainDisplayBounds)")
+        print("Flick: CGMainDisplayID=\(CGMainDisplayID()) bounds=\(mainDisplayBounds)")
 
         var displayCount: UInt32 = 0
         if CGGetActiveDisplayList(0, nil, &displayCount) == .success, displayCount > 0 {
-            print("FlickArrange: active display count=\(displayCount)")
+            print("Flick: active display count=\(displayCount)")
             var displays = [CGDirectDisplayID](repeating: 0, count: Int(displayCount))
             if CGGetActiveDisplayList(displayCount, &displays, &displayCount) == .success {
-                print("FlickArrange: active display bounds=\(displays.map(CGDisplayBounds))")
+                print("Flick: active display bounds=\(displays.map(CGDisplayBounds))")
                 if let bounds = displays.map(CGDisplayBounds).first(where: { !$0.isEmpty }) {
                     return bounds
                 }
             }
         } else {
-            print("FlickArrange: active display list unavailable count=\(displayCount)")
+            print("Flick: active display list unavailable count=\(displayCount)")
         }
 
         if let bounds = mainScreenBoundsFromWindowServer(), !bounds.isEmpty {

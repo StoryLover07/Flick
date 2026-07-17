@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 
 @MainActor
-final class FlickArrangeAppState: ObservableObject {
+final class FlickAppState: ObservableObject {
     private var actionAssignments: FlickActionAssignments
     @Published private(set) var sensorStatus = "Starting sensor..."
     @Published private(set) var isMonitoring = false
@@ -182,14 +182,14 @@ struct ActivityLogEntry: Identifiable {
 }
 
 @MainActor
-final class FlickArrangeController: NSObject {
+final class FlickController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let closeDetector = CloseGestureDetector()
     private let openDetector = OpenGestureDetector()
     private let arranger = WindowArranger()
     private let workspaceActions = WorkspaceActionExecutor()
     private let privacyExecutor = FlickPrivacyExecutor()
-    private let state = FlickArrangeAppState()
+    private let state = FlickAppState()
     private var sensor: LidAngleSensor?
     private var timer: Timer?
     private var lastLoggedAngle: Double?
@@ -260,7 +260,7 @@ final class FlickArrangeController: NSObject {
             sensor = try LidAngleSensor()
             state.setSensorStatus("Monitoring", monitoring: true)
             state.addActivity("Lid sensor monitoring started")
-            print("FlickArrange: sensor monitoring started")
+            print("Flick: sensor monitoring started")
             rebuildMenu()
             timer = Timer.scheduledTimer(withTimeInterval: CloseGestureParameters.sampleInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
@@ -270,7 +270,7 @@ final class FlickArrangeController: NSObject {
         } catch {
             state.setSensorStatus("Sensor unavailable", monitoring: false)
             state.recordFailure("Lid sensor unavailable: \(error)")
-            print("FlickArrange: sensor unavailable: \(error)")
+            print("Flick: sensor unavailable: \(error)")
             rebuildMenu()
             showAlert(
                 title: "Lid sensor unavailable",
@@ -297,7 +297,7 @@ final class FlickArrangeController: NSObject {
         statusItem.button?.title = String(format: "Flick %.0f", angle)
 
         if lastLoggedAngle == nil || abs(angle - (lastLoggedAngle ?? angle)) >= 2 {
-            print(String(format: "FlickArrange: lid angle %.0f deg", angle))
+            print(String(format: "Flick: lid angle %.0f deg", angle))
             lastLoggedAngle = angle
         }
 
@@ -305,7 +305,7 @@ final class FlickArrangeController: NSObject {
 
         if state.isCloseGestureEnabled,
            closeDetector.addSample(timestamp: timestamp, angle: angle) {
-            print("FlickArrange: Close detected")
+            print("Flick: Close detected")
             statusItem.button?.title = "Flick!"
             handleGesture(.close)
             return
@@ -313,7 +313,7 @@ final class FlickArrangeController: NSObject {
 
         if state.isOpenGestureEnabled,
            openDetector.addSample(timestamp: timestamp, angle: angle) {
-            print("FlickArrange: Open detected")
+            print("Flick: Open detected")
             statusItem.button?.title = "Flick!"
             handleGesture(.open)
         }
@@ -463,7 +463,7 @@ final class FlickArrangeController: NSObject {
         state.refreshAccessibilityStatus()
         state.recordArrangement(result, preview: preview)
         let action = preview ? "previewed" : "arranged"
-        print("FlickArrange: \(action) \(result.arrangedCount)/\(result.targetCount) windows in \(result.totalDurationMilliseconds) ms")
+        print("Flick: \(action) \(result.arrangedCount)/\(result.targetCount) windows in \(result.totalDurationMilliseconds) ms")
         statusItem.button?.title = "Flick"
         rebuildMenu()
     }
@@ -472,7 +472,7 @@ final class FlickArrangeController: NSObject {
         state.setArranging(false)
         state.refreshAccessibilityStatus()
         state.recordWorkspaceAction(result)
-        print("FlickArrange: \(reason) ran \(result.action.title)")
+        print("Flick: \(reason) ran \(result.action.title)")
         if result.action == .hide {
             dashboardWindow?.orderOut(nil)
         }
@@ -485,7 +485,7 @@ final class FlickArrangeController: NSObject {
         state.refreshAccessibilityStatus()
         state.setPrivacySnapshot(result.snapshot)
         state.recordPrivacyAction(result)
-        print("FlickArrange: \(reason) ran Flick Privacy with \(result.failures.count) warning(s)")
+        print("Flick: \(reason) ran Flick Privacy with \(result.failures.count) warning(s)")
         statusItem.button?.title = "Flick"
         rebuildMenu()
 
@@ -504,7 +504,7 @@ final class FlickArrangeController: NSObject {
         if result.fullyRestored {
             state.clearPrivacySnapshot()
         }
-        print("FlickArrange: \(reason) ran Flick Privacy Cancel with \(result.failures.count) warning(s)")
+        print("Flick: \(reason) ran Flick Privacy Cancel with \(result.failures.count) warning(s)")
         statusItem.button?.title = "Flick"
         rebuildMenu()
 
@@ -521,7 +521,7 @@ final class FlickArrangeController: NSObject {
         state.refreshAccessibilityStatus()
         let message = "Could not run Flick action: \(error)"
         state.recordFailure(message)
-        print("FlickArrange: action failed: \(error)")
+        print("Flick: action failed: \(error)")
         rebuildMenu()
         showAlert(
             title: "Could not run Flick action",
@@ -547,7 +547,7 @@ final class FlickArrangeController: NSObject {
         if let dashboardWindow {
             dashboardWindow.makeKeyAndOrderFront(nil)
         } else {
-            let dashboard = FlickArrangeDashboardView(
+            let dashboard = FlickDashboardView(
                 state: state,
                 toggleMonitoring: { [weak self] in self?.toggleMonitoring() },
                 setCloseGestureEnabled: { [weak self] enabled in self?.setCloseGestureEnabled(enabled) },

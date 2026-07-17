@@ -14,7 +14,7 @@ struct ArrangeWindowsIntent: AppIntent {
 }
 
 @available(macOS 13.0, *)
-struct FlickArrangeShortcuts: AppShortcutsProvider {
+struct FlickShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: ArrangeWindowsIntent(),

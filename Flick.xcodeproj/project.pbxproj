@@ -7,8 +7,8 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* main.swift */; };
-		A10000000000000000000002 /* FlickArrangeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* FlickArrangeController.swift */; };
-		A10000000000000000000003 /* FlickArrangeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* FlickArrangeDashboardView.swift */; };
+		A10000000000000000000002 /* FlickController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* FlickController.swift */; };
+		A10000000000000000000003 /* FlickDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* FlickDashboardView.swift */; };
 		A10000000000000000000004 /* LidAngleSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* LidAngleSensor.swift */; };
 		A10000000000000000000005 /* CloseGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* CloseGestureDetector.swift */; };
 		A10000000000000000000006 /* WindowArranger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* WindowArranger.swift */; };
@@ -26,24 +26,24 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A20000000000000000000001 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/main.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000002 /* FlickArrangeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickArrangeController.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000003 /* FlickArrangeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickArrangeDashboardView.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000004 /* LidAngleSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/LidAngleSensor.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000005 /* CloseGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/CloseGestureDetector.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000006 /* WindowArranger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/WindowArranger.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000007 /* ArrangeWindowsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/ArrangeWindowsIntent.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000001 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/main.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000002 /* FlickController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/FlickController.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000003 /* FlickDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/FlickDashboardView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000004 /* LidAngleSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/LidAngleSensor.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000005 /* CloseGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/CloseGestureDetector.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000006 /* WindowArranger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/WindowArranger.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000007 /* ArrangeWindowsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/ArrangeWindowsIntent.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000008 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		A20000000000000000000009 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
 		A20000000000000000000010 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		A20000000000000000000011 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 			A20000000000000000000012 /* Flick.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flick.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000014 /* OpenGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/OpenGestureDetector.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000015 /* FlickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickAction.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000016 /* WorkspaceActionExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/WorkspaceActionExecutor.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000017 /* FlickPrivacySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickPrivacySettings.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000018 /* FlickPrivacyExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/FlickArrange/FlickPrivacyExecutor.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000014 /* OpenGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/OpenGestureDetector.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000015 /* FlickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/FlickAction.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000016 /* WorkspaceActionExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/WorkspaceActionExecutor.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000017 /* FlickPrivacySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/FlickPrivacySettings.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000018 /* FlickPrivacyExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Flick/FlickPrivacyExecutor.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,8 +75,8 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000001 /* main.swift */,
-				A20000000000000000000002 /* FlickArrangeController.swift */,
-				A20000000000000000000003 /* FlickArrangeDashboardView.swift */,
+				A20000000000000000000002 /* FlickController.swift */,
+				A20000000000000000000003 /* FlickDashboardView.swift */,
 				A20000000000000000000004 /* LidAngleSensor.swift */,
 				A20000000000000000000005 /* CloseGestureDetector.swift */,
 				A20000000000000000000014 /* OpenGestureDetector.swift */,
@@ -143,7 +143,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "FlickArrange" */;
+			buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "Flick" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -206,8 +206,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* main.swift in Sources */,
-				A10000000000000000000002 /* FlickArrangeController.swift in Sources */,
-				A10000000000000000000003 /* FlickArrangeDashboardView.swift in Sources */,
+				A10000000000000000000002 /* FlickController.swift in Sources */,
+				A10000000000000000000003 /* FlickDashboardView.swift in Sources */,
 				A10000000000000000000004 /* LidAngleSensor.swift in Sources */,
 				A10000000000000000000005 /* CloseGestureDetector.swift in Sources */,
 				A10000000000000000000013 /* OpenGestureDetector.swift in Sources */,
@@ -292,7 +292,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A60000000000000000000001 /* Build configuration list for PBXProject "FlickArrange" */ = {
+		A60000000000000000000001 /* Build configuration list for PBXProject "Flick" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A80000000000000000000001 /* Debug */,

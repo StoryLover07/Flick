@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct FlickArrangeDashboardView: View {
-    @ObservedObject var state: FlickArrangeAppState
+struct FlickDashboardView: View {
+    @ObservedObject var state: FlickAppState
     let toggleMonitoring: () -> Void
     let setCloseGestureEnabled: (Bool) -> Void
     let setOpenGestureEnabled: (Bool) -> Void
@@ -94,7 +94,7 @@ private struct GestureStatus: View {
 }
 
 private struct CloseGestureDetailView: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
     let toggleMonitoring: () -> Void
     let setCloseGestureEnabled: (Bool) -> Void
     let setAction: (FlickAction) -> Void
@@ -164,6 +164,7 @@ private struct CloseGestureDetailView: View {
     private var actionCard: some View {
         ActionAssignmentCard(
             state: state,
+            gesture: .close,
             action: state.closeAction,
             setAction: setAction,
             runAction: runAction,
@@ -173,7 +174,7 @@ private struct CloseGestureDetailView: View {
 }
 
 private struct OpenGestureDetailView: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
     let toggleMonitoring: () -> Void
     let setOpenGestureEnabled: (Bool) -> Void
     let setAction: (FlickAction) -> Void
@@ -243,6 +244,7 @@ private struct OpenGestureDetailView: View {
     private var actionCard: some View {
         ActionAssignmentCard(
             state: state,
+            gesture: .open,
             action: state.openAction,
             setAction: setAction,
             runAction: runAction,
@@ -252,11 +254,16 @@ private struct OpenGestureDetailView: View {
 }
 
 private struct ActionAssignmentCard: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
+    let gesture: FlickGesture
     let action: FlickAction
     let setAction: (FlickAction) -> Void
     let runAction: () -> Void
     let previewLayout: () -> Void
+
+    private var pairedGesture: FlickGesture {
+        gesture == .close ? .open : .close
+    }
 
     var body: some View {
         DashboardCard(title: "Assigned Action", systemImage: "bolt.circle") {
@@ -288,6 +295,16 @@ private struct ActionAssignmentCard: View {
                 .accessibilityLabel("Assigned Flick action")
             }
 
+            if action == .privacyCancel,
+               state.assignmentOrigin(for: gesture) == .automatic {
+                Label(
+                    "Automatically paired with Flick Privacy on \(pairedGesture.title). You can choose another action at any time.",
+                    systemImage: "link"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Divider()
 
             HStack(spacing: 10) {
@@ -312,7 +329,7 @@ private struct ActionAssignmentCard: View {
 }
 
 private struct FlickPrivacySettingsCard: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
     @State private var appPicker: PrivacyAppPickerPresentation?
 
     var body: some View {
@@ -452,8 +469,18 @@ private struct FlickPrivacySettingsCard: View {
                 isOn: boolBinding(\.workModeEnabled)
             )
             if state.privacySettings.workModeEnabled {
-                TextField("Shortcut name", text: workModeShortcutBinding)
-                    .textFieldStyle(.roundedBorder)
+                LabeledContent("Enable Shortcut") {
+                    TextField("Shortcut name", text: workModeShortcutBinding)
+                        .textFieldStyle(.roundedBorder)
+                }
+                LabeledContent("Restore Shortcut") {
+                    TextField("Optional cancel Shortcut", text: workModeCancelShortcutBinding)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Text("The restore Shortcut should return Focus to the state you want after Flick Privacy Cancel. Leave it blank to skip this restore step.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Work mode depends on a Shortcut you create in the Shortcuts app. Focus control has no stable public macOS API, so this step may require system approval or may not run on every setup.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -500,6 +527,15 @@ private struct FlickPrivacySettingsCard: View {
             get: { state.privacySettings.workModeShortcutName },
             set: { newValue in
                 state.updatePrivacySettings { $0.workModeShortcutName = newValue }
+            }
+        )
+    }
+
+    private var workModeCancelShortcutBinding: Binding<String> {
+        Binding(
+            get: { state.privacySettings.workModeCancelShortcutName },
+            set: { newValue in
+                state.updatePrivacySettings { $0.workModeCancelShortcutName = newValue }
             }
         )
     }
@@ -622,7 +658,7 @@ private struct GestureIcon: View {
 }
 
 private struct LiveSensorCard: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
     let toggleMonitoring: () -> Void
 
     var body: some View {
@@ -651,7 +687,7 @@ private struct LiveSensorCard: View {
 }
 
 private struct RecentActivityCard: View {
-    @ObservedObject var state: FlickArrangeAppState
+    @ObservedObject var state: FlickAppState
     let openAccessibilitySettings: () -> Void
 
     var body: some View {

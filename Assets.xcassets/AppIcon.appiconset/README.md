@@ -1,4 +1,4 @@
-# Flick Arrange App Icon
+# Flick App Icon
 
 Drop one final 1024 x 1024 PNG into this folder with this exact name:
 
